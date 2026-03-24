@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CxMatrix Commissioning Management Application</title>
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="script.js"></script>
+</head>
+<body>
+    <header>
+        <h1>CxMatrix</h1>
+        <nav>
+            <ul>
+                <li><a href="#projects">Projects</a></li>
+                <li><a href="#assets">Assets</a></li>
+                <li><a href="#issues">Issues</a></li>
+                <li><a href="#checklists">Checklists</a></li>
+                <li><a href="#tests">Tests</a></li>
+            </ul>
+        </nav>
+    </header>
+    <main>
+        <section id="projects">
+            <h2>Project Management</h2>
+            <button id="add-project-btn">Add Project</button>
+            <div id="project-list"></div>
+            <!-- Modals for projects will be defined here -->
+        </section>
+        <section id="assets">
+            <h2>Asset Management</h2>
+            <button id="add-asset-btn">Add Asset</button>
+            <div id="asset-list"></div>
+            <!-- Modals for assets will be defined here -->
+        </section>
+        <section id="issues">
+            <h2>Issue Tracker</h2>
+            <button id="add-issue-btn">Add Issue</button>
+            <div id="issue-list"></div>
+            <!-- Modals for issues will be defined here -->
+        </section>
+        <section id="checklists">
+            <h2>Checklists</h2>
+            <button id="add-checklist-btn">Add Checklist</button>
+            <div id="checklist-list"></div>
+            <!-- Modals for checklists will be defined here -->
+        </section>
+        <section id="tests">
+            <h2>Tests Management</h2>
+            <button id="add-test-btn">Add Test</button>
+            <div id="test-list"></div>
+            <!-- Modals for tests will be defined here -->
+        </section>
+    </main>
+    <footer>
+        <p>&copy; 2026 CxMatrix</p>
+    </footer>
+</body>
+</html>
+
+/* styles.css - Example CSS styling */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f4f4f4;
+}
+header {
+    background: #35424a;
+    color: #ffffff;
+    padding: 10px 20px;
+}
+nav ul {
+    list-style: none;
+    padding: 0;
+}
+nav a {
+    color: #ffffff;
+    text-decoration: none;
+}
+main {
+    padding: 20px;
+}
+button {
+    margin: 5px;
+    padding: 10px 15px;
+    background: #35424a;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+button:hover {
+    background: #454d55;
+}
+
+/* script.js - Example JavaScript functionality */
+document.addEventListener("DOMContentLoaded", function() {
+    // Functions for CRUD operations, filtering, searching, and data persistence using localStorage will be defined here.
+    // Example: Load projects from localStorage
+    loadProjects();
+
+    document.getElementById('add-project-btn').onclick = addProject;
+});
+
+function addProject() {
+    // Function to add a project
+}
+
+function loadProjects() {
+    // Function to load projects from localStorage
+}
