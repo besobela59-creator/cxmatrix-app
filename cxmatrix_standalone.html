@@ -1,0 +1,1959 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CxMatrix – Commissioning Workspace</title>
+
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          cx: {
+            50:  '#ecfdf5',
+            100: '#d1fae5',
+            200: '#a7f3d0',
+            300: '#6ee7b7',
+            400: '#34d399',
+            500: '#10b981',
+            600: '#059669',
+            700: '#047857',
+            800: '#065f46',
+            900: '#064e3b',
+          }
+        }
+      }
+    }
+  }
+</script>
+
+<!-- React 18 -->
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+<!-- Babel (JSX transform) -->
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+<!-- SheetJS (Excel) -->
+<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<!-- jsPDF -->
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+<style>
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  #root { height: 100vh; display: flex; flex-direction: column; }
+  /* custom scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; }
+  ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+  /* transition helpers */
+  .fade-in { animation: fadeIn 0.18s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
+
+/* ═══════════════════════════════════════════════════════════════════
+   UTILITIES
+══════════════════════════════════════════════════════════════════════ */
+const uid  = () => Math.random().toString(36).slice(2, 10);
+const fmtDate = d => {
+  if (!d) return '—';
+  try { const [y,m,day] = d.split('-'); return `${m}/${day}/${y}`; }
+  catch { return d; }
+};
+const today = () => new Date().toISOString().slice(0,10);
+
+/* localStorage helpers */
+const LS = {
+  get: (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
+  set: (k, v)  => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   SEED DATA
+══════════════════════════════════════════════════════════════════════ */
+const SEED_PROJECT = {
+  id:'p1', name:'Wardlaw Data Hall', client:'Wardlaw Properties', site:'123 Data Center Dr, Atlanta GA',
+  phase:'Construction', status:'Active', startDate:'2024-01-15', dueDate:'2024-12-31',
+  description:'New Tier III data center commissioning project.'
+};
+const SEED_COMPANIES = [
+  { id:'c1', name:'Wardlaw Properties', type:'Owner', phone:'404-555-0100', email:'contact@wardlaw.com', address:'Atlanta, GA' },
+  { id:'c2', name:'CxMatrix Engineering', type:'CxAgent', phone:'404-555-0200', email:'cx@cxmatrix.app', address:'Atlanta, GA' },
+];
+const SEED_PEOPLE = [
+  { id:'pe1', name:'Solomon Besobela', role:'Commissioning Manager', companyId:'c2', email:'solomon@cxmatrix.app', phone:'404-555-0201', projectId:'p1' },
+  { id:'pe2', name:'Jane Smith', role:'Cx Engineer', companyId:'c2', email:'jane@cxmatrix.app', phone:'404-555-0202', projectId:'p1' },
+];
+const SEED_ASSETS = [
+  { id:'a1', projectId:'p1', tag:'AHU-01', name:'Air Handling Unit 1', type:'AHU', discipline:'Mechanical', location:'Mech Room 1', make:'Trane', model:'M-Series', status:'Active', notes:'' },
+  { id:'a2', projectId:'p1', tag:'ATS-01', name:'Automatic Transfer Switch 1', type:'ATS', discipline:'Electrical', location:'MCC Room', make:'ASCO', model:'Series 300', status:'Active', notes:'' },
+  { id:'a3', projectId:'p1', tag:'BAS-01', name:'Building Automation System', type:'BAS', discipline:'Controls', location:'Server Room', make:'Honeywell', model:'WEBs', status:'Active', notes:'' },
+];
+const SEED_ISSUES = [
+  { id:'i1', projectId:'p1', issueNum:'ISS-001', title:'AHU-01 Belt Slippage', discipline:'Mechanical', severity:'High', priority:'High', status:'Open', assetId:'a1', assignedTo:'pe2', dueDate:'2024-06-30', notes:'Belt requires replacement.' },
+  { id:'i2', projectId:'p1', issueNum:'ISS-002', title:'ATS-01 Transfer Delay', discipline:'Electrical', severity:'Critical', priority:'Critical', status:'In Progress', assetId:'a2', assignedTo:'pe1', dueDate:'2024-05-15', notes:'Transfer time exceeds 10s spec.' },
+];
+const SEED_DOCUMENTS = [
+  { id:'d1', projectId:'p1', name:'Cx Plan Rev1.pdf', category:'Cx Plan', uploadDate:'2024-02-01', uploadedBy:'pe1', size:'2.1 MB', notes:'Initial commissioning plan.' },
+];
+const SEED_PFC = [
+  { id:'pfc1', projectId:'p1', assetId:'a1', name:'AHU-01 Pre-Functional Checklist', status:'In Progress', createdDate:'2024-03-01', items:[
+    { id:'pi1', description:'Verify all access panels installed', status:'Pass', notes:'' },
+    { id:'pi2', description:'Confirm belt tension per manufacturer', status:'Fail', notes:'Belt too loose – see ISS-001' },
+    { id:'pi3', description:'Motor rotation correct', status:'Pass', notes:'' },
+    { id:'pi4', description:'All filters installed and clean', status:'N/A', notes:'' },
+  ]},
+];
+const SEED_FPT = [
+  { id:'fpt1', projectId:'p1', assetId:'a2', name:'ATS-01 Functional Performance Test', status:'Scheduled', scheduledDate:'2024-07-01', completedDate:'', items:[
+    { id:'fi1', description:'Simulate utility power loss', expected:'Transfer <10s', actual:'', status:'Pending', notes:'' },
+    { id:'fi2', description:'Verify alarm annunciation', expected:'Alarm within 5s', actual:'', status:'Pending', notes:'' },
+  ]},
+];
+const SEED_CPM = [
+  { id:'cp1', projectId:'p1', assetId:'a1', deliverable:'Pre-Functional Checklist', responsible:'pe2', plannedDate:'2024-04-01', actualDate:'2024-04-03', status:'Complete' },
+  { id:'cp2', projectId:'p1', assetId:'a1', deliverable:'Functional Performance Test', responsible:'pe2', plannedDate:'2024-07-15', actualDate:'', status:'Scheduled' },
+  { id:'cp3', projectId:'p1', assetId:'a2', deliverable:'Pre-Functional Checklist', responsible:'pe2', plannedDate:'2024-04-15', actualDate:'', status:'In Progress' },
+  { id:'cp4', projectId:'p1', assetId:'a2', deliverable:'Functional Performance Test', responsible:'pe1', plannedDate:'2024-07-01', actualDate:'', status:'Scheduled' },
+];
+
+function initStore() {
+  if (!LS.get('cx_seeded', false)) {
+    LS.set('cx_projects',  [SEED_PROJECT]);
+    LS.set('cx_companies', SEED_COMPANIES);
+    LS.set('cx_people',    SEED_PEOPLE);
+    LS.set('cx_assets',    SEED_ASSETS);
+    LS.set('cx_issues',    SEED_ISSUES);
+    LS.set('cx_docs',      SEED_DOCUMENTS);
+    LS.set('cx_pfc',       SEED_PFC);
+    LS.set('cx_fpt',       SEED_FPT);
+    LS.set('cx_cpm',       SEED_CPM);
+    LS.set('cx_seeded',    true);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TOAST CONTEXT
+══════════════════════════════════════════════════════════════════════ */
+const ToastCtx = createContext(null);
+function ToastProvider({ children }) {
+  const [toasts, setToasts] = useState([]);
+  const add = useCallback((msg, type='info') => {
+    const id = uid();
+    setToasts(t => [...t, { id, msg, type }]);
+    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3500);
+  }, []);
+  const COLORS = { success:'bg-cx-600 text-white', error:'bg-red-600 text-white', info:'bg-blue-600 text-white', warning:'bg-amber-500 text-white' };
+  return (
+    <ToastCtx.Provider value={add}>
+      {children}
+      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+        {toasts.map(t => (
+          <div key={t.id} className={`px-4 py-2 rounded-lg shadow-lg text-sm font-medium fade-in ${COLORS[t.type]||COLORS.info}`}>
+            {t.msg}
+          </div>
+        ))}
+      </div>
+    </ToastCtx.Provider>
+  );
+}
+const useToast = () => useContext(ToastCtx);
+
+/* ═══════════════════════════════════════════════════════════════════
+   SMALL UI COMPONENTS
+══════════════════════════════════════════════════════════════════════ */
+function Btn({ children, onClick, variant='primary', size='md', disabled=false, className='' }) {
+  const base = 'inline-flex items-center gap-1 font-medium rounded cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+  const sizes = { sm:'px-2 py-1 text-xs', md:'px-3 py-1.5 text-sm', lg:'px-4 py-2 text-base' };
+  const variants = {
+    primary:   'bg-cx-600 text-white hover:bg-cx-700',
+    secondary: 'bg-slate-200 text-slate-700 hover:bg-slate-300',
+    danger:    'bg-red-600 text-white hover:bg-red-700',
+    ghost:     'bg-transparent text-slate-600 hover:bg-slate-100',
+    outline:   'border border-cx-600 text-cx-700 hover:bg-cx-50',
+  };
+  return (
+    <button className={`${base} ${sizes[size]} ${variants[variant]} ${className}`} onClick={onClick} disabled={disabled}>
+      {children}
+    </button>
+  );
+}
+
+function Badge({ label, color }) {
+  const colors = {
+    green:  'bg-emerald-100 text-emerald-700',
+    red:    'bg-red-100 text-red-700',
+    amber:  'bg-amber-100 text-amber-700',
+    blue:   'bg-blue-100 text-blue-700',
+    purple: 'bg-purple-100 text-purple-700',
+    gray:   'bg-slate-100 text-slate-600',
+    teal:   'bg-teal-100 text-teal-700',
+  };
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${colors[color]||colors.gray}`}>{label}</span>;
+}
+
+function statusColor(s) {
+  const m = { Active:'green', Complete:'green', Passed:'green', Resolved:'green', Closed:'green',
+    'In Progress':'blue', Scheduled:'blue', Planning:'purple',
+    'On Hold':'amber', Failed:'red', Open:'gray', Pending:'gray', Draft:'gray' };
+  return m[s] || 'gray';
+}
+function severityColor(s) {
+  return { Critical:'red', High:'amber', Medium:'blue', Low:'gray' }[s] || 'gray';
+}
+function disciplineColor(d) {
+  return { Mechanical:'blue', Electrical:'amber', Controls:'purple', General:'gray' }[d] || 'gray';
+}
+
+function Modal({ title, open, onClose, children, width='max-w-lg' }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40" onClick={e => { if (e.target===e.currentTarget) onClose(); }}>
+      <div className={`bg-white rounded-xl shadow-2xl w-full ${width} mx-4 flex flex-col max-h-[90vh]`} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+          <h2 className="text-base font-semibold text-slate-800">{title}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg leading-none">&times;</button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, required, children }) {
+  return (
+    <div className="mb-3">
+      <label className="block text-xs font-semibold text-slate-600 mb-1">{label}{required && <span className="text-red-500 ml-0.5">*</span>}</label>
+      {children}
+    </div>
+  );
+}
+
+function Input({ value, onChange, placeholder, type='text', className='' }) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      className={`w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-cx-400 ${className}`}
+    />
+  );
+}
+
+function Select({ value, onChange, options, placeholder }) {
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-cx-400 bg-white"
+    >
+      {placeholder && <option value="">{placeholder}</option>}
+      {options.map(o => (
+        <option key={o.value||o} value={o.value||o}>{o.label||o}</option>
+      ))}
+    </select>
+  );
+}
+
+function Textarea({ value, onChange, placeholder, rows=3 }) {
+  return (
+    <textarea
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={rows}
+      className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-cx-400 resize-none"
+    />
+  );
+}
+
+function EmptyState({ icon, message }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-slate-400">
+      <div className="text-5xl mb-3">{icon}</div>
+      <p className="text-sm">{message}</p>
+    </div>
+  );
+}
+
+function PageHeader({ title, children }) {
+  return (
+    <div className="flex items-center justify-between mb-5 gap-3 flex-wrap">
+      <h1 className="text-xl font-bold text-cx-800">{title}</h1>
+      <div className="flex gap-2 flex-wrap">{children}</div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, color='cx' }) {
+  const colors = { cx:'bg-cx-50 text-cx-700', blue:'bg-blue-50 text-blue-700', amber:'bg-amber-50 text-amber-700', red:'bg-red-50 text-red-700' };
+  return (
+    <div className={`rounded-lg p-4 ${colors[color]}`}>
+      <p className="text-2xl font-bold">{value}</p>
+      <p className="text-xs font-medium mt-0.5 opacity-75">{label}</p>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   LOGIN SCREEN
+══════════════════════════════════════════════════════════════════════ */
+const ROLES = ['Commissioning Manager','Cx Engineer','Project Admin','Reviewer'];
+const DEMO  = { email:'solomon@cxmatrix.app', password:'demo123' };
+
+function LoginScreen({ onLogin }) {
+  const [name, setName]         = useState('Solomon');
+  const [email, setEmail]       = useState(DEMO.email);
+  const [password, setPassword] = useState(DEMO.password);
+  const [role, setRole]         = useState(ROLES[0]);
+  const [error, setError]       = useState('');
+
+  const handleSubmit = e => {
+    e.preventDefault();
+    if (!name.trim() || !email.trim() || !password.trim()) { setError('All fields required.'); return; }
+    if (email !== DEMO.email || password !== DEMO.password) { setError('Invalid credentials. Use demo credentials.'); return; }
+    onLogin({ name: name.trim(), email, role });
+  };
+
+  return (
+    <div className="min-h-screen bg-cx-900 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8">
+        <div className="text-center mb-7">
+          <div className="text-4xl mb-2">🏗️</div>
+          <h1 className="text-2xl font-extrabold text-cx-800">CxMatrix</h1>
+          <p className="text-xs text-slate-500 mt-1">Commissioning Workspace</p>
+        </div>
+        {error && <div className="bg-red-50 text-red-600 text-xs rounded p-2 mb-3">{error}</div>}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <Field label="Your Name" required>
+            <Input value={name} onChange={setName} placeholder="Full name" />
+          </Field>
+          <Field label="Email" required>
+            <Input value={email} onChange={setEmail} type="email" placeholder="email@example.com" />
+          </Field>
+          <Field label="Password" required>
+            <Input value={password} onChange={setPassword} type="password" placeholder="Password" />
+          </Field>
+          <Field label="Role">
+            <Select value={role} onChange={setRole} options={ROLES} />
+          </Field>
+          <Btn variant="primary" size="lg" className="w-full justify-center mt-1">Sign In</Btn>
+        </form>
+        <p className="text-center text-xs text-slate-400 mt-4">Demo: solomon@cxmatrix.app / demo123</p>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SIDEBAR NAV
+══════════════════════════════════════════════════════════════════════ */
+const NAV_ITEMS = [
+  { id:'dashboard',  label:'Dashboard',     icon:'🏠' },
+  { id:'projects',   label:'Projects',      icon:'📁' },
+  { id:'people',     label:'People & Cos',  icon:'👥' },
+  { id:'assets',     label:'Assets',        icon:'⚙️'  },
+  { id:'pfc',        label:'PFC',           icon:'✅'  },
+  { id:'fpt',        label:'FPT',           icon:'🔬'  },
+  { id:'issues',     label:'Issues',        icon:'🚨'  },
+  { id:'documents',  label:'Documents',     icon:'📄'  },
+  { id:'cpm',        label:'CPM',           icon:'📊'  },
+];
+
+function Sidebar({ active, onNav, user, onLogout, project }) {
+  return (
+    <div className="w-56 bg-cx-800 flex flex-col flex-shrink-0 h-full overflow-y-auto">
+      <div className="px-4 py-4 border-b border-cx-700">
+        <div className="flex items-center gap-2">
+          <span className="text-xl">🏗️</span>
+          <span className="text-white font-bold text-base">CxMatrix</span>
+        </div>
+        {project && (
+          <div className="mt-2 bg-cx-700 rounded px-2 py-1">
+            <p className="text-cx-200 text-xs font-semibold truncate">{project.name}</p>
+            <p className="text-cx-400 text-xs truncate">{project.phase}</p>
+          </div>
+        )}
+      </div>
+      <nav className="flex-1 py-3">
+        {NAV_ITEMS.map(n => (
+          <button
+            key={n.id}
+            onClick={() => onNav(n.id)}
+            className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors
+              ${active===n.id
+                ? 'bg-cx-600 text-white font-semibold border-l-4 border-cx-300'
+                : 'text-cx-100 hover:bg-cx-700 border-l-4 border-transparent'}`}
+          >
+            <span className="text-base">{n.icon}</span>
+            {n.label}
+          </button>
+        ))}
+      </nav>
+      <div className="px-4 py-3 border-t border-cx-700">
+        <p className="text-cx-200 text-xs font-semibold truncate">{user.name}</p>
+        <p className="text-cx-400 text-xs">{user.role}</p>
+        <button onClick={onLogout} className="mt-2 text-cx-300 hover:text-white text-xs underline">Sign Out</button>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DASHBOARD
+══════════════════════════════════════════════════════════════════════ */
+function Dashboard({ project, assets, issues, pfc, fpt, cpm, onNav }) {
+  if (!project) return (
+    <div className="p-8 text-center">
+      <EmptyState icon="📁" message="No project selected — go to Projects to create one." />
+      <Btn variant="primary" className="mt-4" onClick={() => onNav('projects')}>Go to Projects</Btn>
+    </div>
+  );
+
+  const openIssues    = issues.filter(i => i.status==='Open' || i.status==='In Progress').length;
+  const criticalIssues= issues.filter(i => i.severity==='Critical').length;
+  const cpmComplete   = cpm.filter(c => c.status==='Complete').length;
+  const pfcComplete   = pfc.filter(p => p.status==='Complete').length;
+
+  return (
+    <div className="fade-in">
+      <PageHeader title={project.name}>
+        <Badge label={project.status} color={statusColor(project.status)} />
+        <Badge label={project.phase} color="blue" />
+      </PageHeader>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Total Assets"   value={assets.length}   color="cx"   />
+        <StatCard label="Open Issues"    value={openIssues}      color="amber" />
+        <StatCard label="Critical Issues"value={criticalIssues}  color="red"  />
+        <StatCard label="CPM Complete"   value={`${cpmComplete}/${cpm.length}`} color="blue" />
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-5">
+        {/* Project Info */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+          <h3 className="font-semibold text-slate-700 mb-3 text-sm">Project Details</h3>
+          <dl className="space-y-2 text-sm">
+            {[
+              ['Client',   project.client],
+              ['Site',     project.site],
+              ['Phase',    project.phase],
+              ['Start',    fmtDate(project.startDate)],
+              ['Due',      fmtDate(project.dueDate)],
+              ['Status',   project.status],
+            ].map(([k,v]) => (
+              <div key={k} className="flex gap-2">
+                <dt className="w-16 text-slate-500 font-medium shrink-0">{k}</dt>
+                <dd className="text-slate-700">{v||'—'}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        {/* Recent Issues */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-slate-700 text-sm">Recent Issues</h3>
+            <button onClick={() => onNav('issues')} className="text-xs text-cx-600 hover:underline">View all</button>
+          </div>
+          {issues.length === 0
+            ? <p className="text-xs text-slate-400">No issues.</p>
+            : issues.slice(0,4).map(i => (
+              <div key={i.id} className="flex items-center gap-2 py-1.5 border-b border-slate-50 last:border-0">
+                <Badge label={i.severity} color={severityColor(i.severity)} />
+                <span className="text-xs text-slate-700 flex-1 truncate">{i.title}</span>
+                <Badge label={i.status} color={statusColor(i.status)} />
+              </div>
+            ))
+          }
+        </div>
+
+        {/* Asset Summary */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-slate-700 text-sm">Assets by Discipline</h3>
+            <button onClick={() => onNav('assets')} className="text-xs text-cx-600 hover:underline">View all</button>
+          </div>
+          {['Mechanical','Electrical','Controls','General'].map(d => {
+            const cnt = assets.filter(a => a.discipline===d).length;
+            return (
+              <div key={d} className="flex items-center gap-2 py-1">
+                <Badge label={d} color={disciplineColor(d)} />
+                <div className="flex-1 bg-slate-100 rounded-full h-2">
+                  <div
+                    className="bg-cx-500 h-2 rounded-full"
+                    style={{ width: assets.length ? `${(cnt/assets.length)*100}%` : '0%' }}
+                  />
+                </div>
+                <span className="text-xs text-slate-500 w-4 text-right">{cnt}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* PFC / FPT */}
+        <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+          <h3 className="font-semibold text-slate-700 text-sm mb-3">Testing Summary</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-blue-50 rounded p-3 text-center">
+              <p className="text-2xl font-bold text-blue-700">{pfc.length}</p>
+              <p className="text-xs text-blue-500">PFC Total</p>
+              <p className="text-xs text-blue-400">{pfcComplete} complete</p>
+            </div>
+            <div className="bg-purple-50 rounded p-3 text-center">
+              <p className="text-2xl font-bold text-purple-700">{fpt.length}</p>
+              <p className="text-xs text-purple-500">FPT Total</p>
+              <p className="text-xs text-purple-400">{fpt.filter(f=>f.status==='Complete').length} complete</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PROJECTS VIEW
+══════════════════════════════════════════════════════════════════════ */
+const PROJECT_PHASES   = ['Pre-Design','Design','Bid','Construction','Substantial Completion','Close-Out'];
+const PROJECT_STATUSES = ['Planning','Active','On Hold','Complete','Closed'];
+
+function blankProject() {
+  return { id:'', name:'', client:'', site:'', phase:'Construction', status:'Active',
+           startDate:today(), dueDate:'', description:'' };
+}
+
+function ProjectsView({ projects, setProjects, currentProjectId, setCurrentProjectId }) {
+  const toast = useToast();
+  const [modal, setModal] = useState(false);
+  const [form, setForm]   = useState(blankProject());
+  const f = k => v => setForm(p => ({ ...p, [k]: v }));
+
+  const openNew  = () => { setForm(blankProject()); setModal(true); };
+  const openEdit = p  => { setForm({ ...p }); setModal(true); };
+
+  const save = () => {
+    if (!form.name.trim()) { toast('Project name required.', 'error'); return; }
+    if (form.id) {
+      setProjects(p => p.map(x => x.id===form.id ? { ...form } : x));
+      toast('Project updated.', 'success');
+    } else {
+      const np = { ...form, id: uid() };
+      setProjects(p => [...p, np]);
+      setCurrentProjectId(np.id);
+      toast('Project created.', 'success');
+    }
+    setModal(false);
+  };
+
+  const del = id => {
+    if (!window.confirm('Delete this project? All data will be lost.')) return;
+    setProjects(p => p.filter(x => x.id!==id));
+    if (currentProjectId===id) setCurrentProjectId(projects[0]?.id || null);
+    toast('Project deleted.', 'success');
+  };
+
+  return (
+    <div className="fade-in">
+      <PageHeader title="Projects">
+        <Btn onClick={openNew}>+ New Project</Btn>
+      </PageHeader>
+
+      {projects.length===0
+        ? <EmptyState icon="📁" message="No projects yet — create one to get started." />
+        : (
+          <div className="grid gap-4">
+            {projects.map(p => (
+              <div key={p.id} className={`bg-white rounded-xl p-4 shadow-sm border-2 transition-colors cursor-pointer
+                ${currentProjectId===p.id ? 'border-cx-400' : 'border-transparent hover:border-cx-200'}`}
+                onClick={() => setCurrentProjectId(p.id)}
+              >
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-bold text-slate-800">{p.name}</h3>
+                      {currentProjectId===p.id && <span className="text-xs bg-cx-100 text-cx-700 font-semibold px-2 py-0.5 rounded-full">Active</span>}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">{p.client} · {p.site}</p>
+                    {p.description && <p className="text-xs text-slate-400 mt-1 truncate">{p.description}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge label={p.status} color={statusColor(p.status)} />
+                    <Badge label={p.phase}  color="blue" />
+                    <span className="text-xs text-slate-400">Due: {fmtDate(p.dueDate)}</span>
+                    <Btn size="sm" variant="ghost" onClick={e => { e.stopPropagation(); openEdit(p); }}>✏️</Btn>
+                    <Btn size="sm" variant="ghost" onClick={e => { e.stopPropagation(); del(p.id); }}>🗑️</Btn>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      }
+
+      <Modal title={form.id ? 'Edit Project' : 'New Project'} open={modal} onClose={() => setModal(false)}>
+        <div className="grid grid-cols-2 gap-x-3">
+          <div className="col-span-2">
+            <Field label="Project Name" required><Input value={form.name} onChange={f('name')} /></Field>
+          </div>
+          <Field label="Client"><Input value={form.client} onChange={f('client')} /></Field>
+          <Field label="Status">
+            <Select value={form.status} onChange={f('status')} options={PROJECT_STATUSES} />
+          </Field>
+          <div className="col-span-2">
+            <Field label="Site / Address"><Input value={form.site} onChange={f('site')} /></Field>
+          </div>
+          <Field label="Phase">
+            <Select value={form.phase} onChange={f('phase')} options={PROJECT_PHASES} />
+          </Field>
+          <Field label="Start Date"><Input type="date" value={form.startDate} onChange={f('startDate')} /></Field>
+          <Field label="Due Date"><Input type="date" value={form.dueDate} onChange={f('dueDate')} /></Field>
+          <div className="col-span-2">
+            <Field label="Description"><Textarea value={form.description} onChange={f('description')} /></Field>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-2">
+          <Btn variant="secondary" onClick={() => setModal(false)}>Cancel</Btn>
+          <Btn onClick={save}>{form.id ? 'Update' : 'Create'}</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PEOPLE & COMPANIES
+══════════════════════════════════════════════════════════════════════ */
+const CO_TYPES     = ['Owner','Cx Agent','Engineer','Contractor','Sub-Contractor','Supplier','Other'];
+const PEOPLE_ROLES = ROLES.concat(['Project Owner','Design Engineer','Contractor PM','Site Foreman','Other']);
+
+function PeopleView({ project, companies, setCompanies, people, setPeople }) {
+  const toast = useToast();
+  const [tab, setTab] = useState('people');
+
+  /* ── Companies ─────────────────────── */
+  const [coModal, setCoModal] = useState(false);
+  const [coForm, setCoForm]   = useState({});
+  const cf = k => v => setCoForm(p => ({ ...p, [k]: v }));
+
+  const openNewCo  = () => setCoForm({ id:'', name:'', type:'Owner', phone:'', email:'', address:'' }) || setCoModal(true);
+  const openEditCo = c => setCoForm({ ...c }) || setCoModal(true);
+  const saveCo = () => {
+    if (!coForm.name?.trim()) { toast('Company name required.', 'error'); return; }
+    if (coForm.id) setCompanies(cs => cs.map(c => c.id===coForm.id ? coForm : c));
+    else setCompanies(cs => [...cs, { ...coForm, id:uid() }]);
+    toast('Company saved.', 'success'); setCoModal(false);
+  };
+  const delCo = id => {
+    if (!window.confirm('Delete company?')) return;
+    setCompanies(cs => cs.filter(c => c.id!==id));
+    toast('Company deleted.', 'success');
+  };
+
+  /* ── People ────────────────────────── */
+  const [peModal, setPeModal] = useState(false);
+  const [peForm, setPeForm]   = useState({});
+  const pf = k => v => setPeForm(p => ({ ...p, [k]: v }));
+
+  const projectPeople = project ? people.filter(p => p.projectId===project.id) : people;
+
+  const openNewPe  = () => setPeForm({ id:'', name:'', role:PEOPLE_ROLES[0], companyId:'', email:'', phone:'', projectId:project?.id||'' }) || setPeModal(true);
+  const openEditPe = p => setPeForm({ ...p }) || setPeModal(true);
+  const savePe = () => {
+    if (!peForm.name?.trim()) { toast('Name required.', 'error'); return; }
+    if (peForm.id) setPeople(ps => ps.map(p => p.id===peForm.id ? peForm : p));
+    else setPeople(ps => [...ps, { ...peForm, id:uid() }]);
+    toast('Contact saved.', 'success'); setPeModal(false);
+  };
+  const delPe = id => {
+    if (!window.confirm('Delete contact?')) return;
+    setPeople(ps => ps.filter(p => p.id!==id));
+    toast('Contact deleted.', 'success');
+  };
+
+  return (
+    <div className="fade-in">
+      <PageHeader title="People & Companies">
+        <Btn onClick={tab==='companies' ? openNewCo : openNewPe}>
+          + {tab==='companies' ? 'Company' : 'Contact'}
+        </Btn>
+      </PageHeader>
+
+      <div className="flex gap-1 mb-4 border-b border-slate-200">
+        {['people','companies'].map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium capitalize border-b-2 transition-colors -mb-px
+              ${tab===t ? 'border-cx-500 text-cx-700' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {tab==='people' && (
+        projectPeople.length===0
+          ? <EmptyState icon="👤" message="No contacts yet." />
+          : (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50">
+                  <tr>{['Name','Role','Company','Email','Phone',''].map(h => (
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-500">{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {projectPeople.map(p => {
+                    const co = companies.find(c => c.id===p.companyId);
+                    return (
+                      <tr key={p.id} className="border-t border-slate-50 hover:bg-slate-50">
+                        <td className="px-3 py-2 font-medium text-slate-800">{p.name}</td>
+                        <td className="px-3 py-2 text-slate-500">{p.role}</td>
+                        <td className="px-3 py-2 text-slate-500">{co?.name||'—'}</td>
+                        <td className="px-3 py-2 text-slate-500">{p.email||'—'}</td>
+                        <td className="px-3 py-2 text-slate-500">{p.phone||'—'}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex gap-1">
+                            <Btn size="sm" variant="ghost" onClick={() => openEditPe(p)}>✏️</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => delPe(p.id)}>🗑️</Btn>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
+      )}
+
+      {tab==='companies' && (
+        companies.length===0
+          ? <EmptyState icon="🏢" message="No companies yet." />
+          : (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50">
+                  <tr>{['Company','Type','Email','Phone','Address',''].map(h => (
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-500">{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {companies.map(c => (
+                    <tr key={c.id} className="border-t border-slate-50 hover:bg-slate-50">
+                      <td className="px-3 py-2 font-medium text-slate-800">{c.name}</td>
+                      <td className="px-3 py-2"><Badge label={c.type} color="blue" /></td>
+                      <td className="px-3 py-2 text-slate-500">{c.email||'—'}</td>
+                      <td className="px-3 py-2 text-slate-500">{c.phone||'—'}</td>
+                      <td className="px-3 py-2 text-slate-500">{c.address||'—'}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex gap-1">
+                          <Btn size="sm" variant="ghost" onClick={() => openEditCo(c)}>✏️</Btn>
+                          <Btn size="sm" variant="ghost" onClick={() => delCo(c.id)}>🗑️</Btn>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
+      )}
+
+      {/* Company Modal */}
+      <Modal title={coForm.id ? 'Edit Company' : 'New Company'} open={coModal} onClose={() => setCoModal(false)}>
+        <Field label="Company Name" required><Input value={coForm.name||''} onChange={cf('name')} /></Field>
+        <Field label="Type"><Select value={coForm.type||''} onChange={cf('type')} options={CO_TYPES} /></Field>
+        <Field label="Email"><Input value={coForm.email||''} onChange={cf('email')} type="email" /></Field>
+        <Field label="Phone"><Input value={coForm.phone||''} onChange={cf('phone')} /></Field>
+        <Field label="Address"><Input value={coForm.address||''} onChange={cf('address')} /></Field>
+        <div className="flex justify-end gap-2 mt-2">
+          <Btn variant="secondary" onClick={() => setCoModal(false)}>Cancel</Btn>
+          <Btn onClick={saveCo}>{coForm.id ? 'Update' : 'Create'}</Btn>
+        </div>
+      </Modal>
+
+      {/* Person Modal */}
+      <Modal title={peForm.id ? 'Edit Contact' : 'New Contact'} open={peModal} onClose={() => setPeModal(false)}>
+        <Field label="Full Name" required><Input value={peForm.name||''} onChange={pf('name')} /></Field>
+        <Field label="Role"><Select value={peForm.role||''} onChange={pf('role')} options={PEOPLE_ROLES} /></Field>
+        <Field label="Company">
+          <Select value={peForm.companyId||''} onChange={pf('companyId')}
+            options={companies.map(c => ({ value:c.id, label:c.name }))} placeholder="-- Select --" />
+        </Field>
+        <Field label="Email"><Input value={peForm.email||''} onChange={pf('email')} type="email" /></Field>
+        <Field label="Phone"><Input value={peForm.phone||''} onChange={pf('phone')} /></Field>
+        <div className="flex justify-end gap-2 mt-2">
+          <Btn variant="secondary" onClick={() => setPeModal(false)}>Cancel</Btn>
+          <Btn onClick={savePe}>{peForm.id ? 'Update' : 'Create'}</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ASSETS VIEW
+══════════════════════════════════════════════════════════════════════ */
+const ASSET_TYPES  = ['AHU','ATS','BAS','Boiler','Chiller','Cooling Tower','Damper','Exhaust Fan','FCU','Generator','HVAC',
+  'MCC','Packaged RTU','Pump','Server','Switch Gear','Transfer Switch','UPS','VAV','Other'];
+const DISCIPLINES  = ['Mechanical','Electrical','Controls','General'];
+const ASSET_STATUSES = ['Active','Inactive','Decommissioned'];
+
+function blankAsset(projectId) {
+  return { id:'', projectId, tag:'', name:'', type:'AHU', discipline:'Mechanical', location:'', make:'', model:'', status:'Active', notes:'' };
+}
+
+function AssetsView({ project, assets, setAssets }) {
+  const toast = useToast();
+  const [modal, setModal]     = useState(false);
+  const [form, setForm]       = useState(blankAsset(project?.id));
+  const [filter, setFilter]   = useState('');
+  const [discFilter, setDiscFilter] = useState('');
+  const f = k => v => setForm(p => ({ ...p, [k]: v }));
+
+  const projectAssets = assets.filter(a => a.projectId===project?.id);
+  const filtered = projectAssets.filter(a =>
+    (!filter || a.tag.toLowerCase().includes(filter.toLowerCase()) || a.name.toLowerCase().includes(filter.toLowerCase())) &&
+    (!discFilter || a.discipline===discFilter)
+  );
+
+  const openNew  = () => { setForm(blankAsset(project?.id)); setModal(true); };
+  const openEdit = a  => { setForm({ ...a }); setModal(true); };
+  const save = () => {
+    if (!form.tag.trim() || !form.name.trim()) { toast('Tag and name required.', 'error'); return; }
+    if (form.id) { setAssets(as => as.map(a => a.id===form.id ? form : a)); toast('Asset updated.','success'); }
+    else { setAssets(as => [...as, { ...form, id:uid() }]); toast('Asset created.','success'); }
+    setModal(false);
+  };
+  const del = id => {
+    if (!window.confirm('Delete asset?')) return;
+    setAssets(as => as.filter(a => a.id!==id));
+    toast('Asset deleted.','success');
+  };
+
+  const exportXlsx = () => {
+    if (typeof XLSX === 'undefined') { toast('SheetJS not loaded.','error'); return; }
+    const ws = XLSX.utils.json_to_sheet(filtered.map(a => ({
+      Tag:a.tag, Name:a.name, Type:a.type, Discipline:a.discipline,
+      Location:a.location, Make:a.make, Model:a.model, Status:a.status, Notes:a.notes
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Assets');
+    XLSX.writeFile(wb, 'assets_export.xlsx');
+    toast('Assets exported.','success');
+  };
+
+  const importXlsx = e => {
+    const file = e.target.files[0]; if (!file) return;
+    if (typeof XLSX === 'undefined') { toast('SheetJS not loaded.','error'); return; }
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type:'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws);
+        const newAssets = rows.map(r => ({
+          id: uid(), projectId: project?.id,
+          tag: r.Tag||r.tag||'', name: r.Name||r.name||'',
+          type: r.Type||r.type||'Other', discipline: r.Discipline||r.discipline||'General',
+          location: r.Location||r.location||'', make: r.Make||r.make||'',
+          model: r.Model||r.model||'', status: r.Status||r.status||'Active',
+          notes: r.Notes||r.notes||''
+        }));
+        setAssets(as => [...as, ...newAssets]);
+        toast(`Imported ${newAssets.length} assets.`,'success');
+      } catch(err) { toast('Import failed: ' + err.message, 'error'); }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
+
+  if (!project) return <EmptyState icon="⚙️" message="Select a project first." />;
+
+  return (
+    <div className="fade-in">
+      <PageHeader title="Assets">
+        <label className="cursor-pointer inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded bg-slate-200 text-slate-700 hover:bg-slate-300">
+          📥 Import
+          <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={importXlsx} />
+        </label>
+        <Btn variant="secondary" onClick={exportXlsx}>📤 Export</Btn>
+        <Btn onClick={openNew}>+ Add Asset</Btn>
+      </PageHeader>
+
+      <div className="flex gap-3 mb-4 flex-wrap">
+        <Input value={filter} onChange={setFilter} placeholder="Search tag or name…" className="w-52" />
+        <Select value={discFilter} onChange={setDiscFilter} options={['','Mechanical','Electrical','Controls','General'].map(v=>({value:v,label:v||'All Disciplines'}))} />
+      </div>
+
+      {filtered.length===0
+        ? <EmptyState icon="⚙️" message="No assets found." />
+        : (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50">
+                <tr>{['Tag','Name','Type','Discipline','Location','Make/Model','Status',''].map(h => (
+                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                {filtered.map(a => (
+                  <tr key={a.id} className="border-t border-slate-50 hover:bg-slate-50">
+                    <td className="px-3 py-2 font-mono font-semibold text-cx-700">{a.tag}</td>
+                    <td className="px-3 py-2 font-medium text-slate-800">{a.name}</td>
+                    <td className="px-3 py-2"><Badge label={a.type} color="gray" /></td>
+                    <td className="px-3 py-2"><Badge label={a.discipline} color={disciplineColor(a.discipline)} /></td>
+                    <td className="px-3 py-2 text-slate-500">{a.location||'—'}</td>
+                    <td className="px-3 py-2 text-slate-500">{[a.make,a.model].filter(Boolean).join(' / ')||'—'}</td>
+                    <td className="px-3 py-2"><Badge label={a.status} color={statusColor(a.status)} /></td>
+                    <td className="px-3 py-2">
+                      <div className="flex gap-1">
+                        <Btn size="sm" variant="ghost" onClick={() => openEdit(a)}>✏️</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => del(a.id)}>🗑️</Btn>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+
+      <Modal title={form.id ? 'Edit Asset' : 'New Asset'} open={modal} onClose={() => setModal(false)}>
+        <div className="grid grid-cols-2 gap-x-3">
+          <Field label="Asset Tag" required><Input value={form.tag} onChange={f('tag')} placeholder="AHU-01" /></Field>
+          <Field label="Status"><Select value={form.status} onChange={f('status')} options={ASSET_STATUSES} /></Field>
+          <div className="col-span-2">
+            <Field label="Asset Name" required><Input value={form.name} onChange={f('name')} /></Field>
+          </div>
+          <Field label="Type"><Select value={form.type} onChange={f('type')} options={ASSET_TYPES} /></Field>
+          <Field label="Discipline"><Select value={form.discipline} onChange={f('discipline')} options={DISCIPLINES} /></Field>
+          <Field label="Location"><Input value={form.location} onChange={f('location')} /></Field>
+          <Field label="Make"><Input value={form.make} onChange={f('make')} /></Field>
+          <Field label="Model"><Input value={form.model} onChange={f('model')} /></Field>
+          <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes} onChange={f('notes')} rows={2} /></Field></div>
+        </div>
+        <div className="flex justify-end gap-2 mt-2">
+          <Btn variant="secondary" onClick={() => setModal(false)}>Cancel</Btn>
+          <Btn onClick={save}>{form.id ? 'Update' : 'Create'}</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   PFC VIEW (Pre-Functional Checklists)
+══════════════════════════════════════════════════════════════════════ */
+const PFC_STATUSES  = ['Draft','In Progress','Complete','Void'];
+const ITEM_STATUSES = ['Pending','Pass','Fail','N/A'];
+
+const PFC_TEMPLATES = {
+  'AHU – Standard': [
+    'Verify manufacturer start-up checklist complete',
+    'Confirm all access panels installed and secured',
+    'Check belt tension per manufacturer specification',
+    'Verify motor rotation in correct direction',
+    'Confirm all filters installed and clean',
+    'Verify duct connections complete and sealed',
+    'Check VFD parameters set per schedule',
+    'Confirm controls wiring complete',
+    'Verify condensate drain piped and clear',
+    'Test smoke detector operation',
+  ],
+  'ATS – Standard': [
+    'Verify ATS properly mounted and secured',
+    'Confirm all conductors landed and torqued',
+    'Verify utility power connections',
+    'Confirm generator power connections',
+    'Check control wiring complete',
+    'Verify remote test capability',
+    'Confirm time delay settings per spec',
+    'Test manual operation of bypass',
+    'Verify annunciation panel wiring',
+    'Confirm grounding complete',
+  ],
+  'BAS – Standard': [
+    'Verify all field devices installed',
+    'Confirm network communication established',
+    'Verify trend logs configured',
+    'Check setpoints match design intent',
+    'Confirm alarm thresholds configured',
+    'Verify graphics display correct data',
+    'Check time schedule programming',
+    'Confirm override capabilities functional',
+    'Verify remote access configured',
+    'Test failure modes',
+  ],
+};
+
+function blankPfc(projectId) {
+  return { id:'', projectId, assetId:'', name:'', status:'Draft', createdDate:today(), items:[] };
+}
+
+function PFCView({ project, assets, pfc, setPfc }) {
+  const toast = useToast();
+  const [modal, setModal]     = useState(false);
+  const [detailModal, setDM]  = useState(false);
+  const [form, setForm]       = useState(blankPfc(project?.id));
+  const [active, setActive]   = useState(null);
+  const [template, setTemplate] = useState('');
+  const [newItem, setNewItem] = useState('');
+  const f = k => v => setForm(p => ({ ...p, [k]: v }));
+
+  const projectPfc    = pfc.filter(p => p.projectId===project?.id);
+  const projectAssets = assets.filter(a => a.projectId===project?.id);
+
+  const openNew  = () => { setForm(blankPfc(project?.id)); setTemplate(''); setModal(true); };
+  const openEdit = p => { setForm({ ...p, items:[...p.items.map(i=>({...i}))] }); setTemplate(''); setModal(true); };
+
+  const applyTemplate = () => {
+    if (!template) return;
+    const items = (PFC_TEMPLATES[template]||[]).map(desc => ({ id:uid(), description:desc, status:'Pending', notes:'' }));
+    setForm(p => ({ ...p, items, name: template }));
+    toast('Template applied.','success');
+  };
+
+  const addItem = () => {
+    if (!newItem.trim()) return;
+    setForm(p => ({ ...p, items:[...p.items, { id:uid(), description:newItem.trim(), status:'Pending', notes:'' }] }));
+    setNewItem('');
+  };
+  const removeItem = id => setForm(p => ({ ...p, items: p.items.filter(i => i.id!==id) }));
+  const updateItemStatus = (id, status) => setForm(p => ({ ...p, items: p.items.map(i => i.id===id ? {...i,status} : i) }));
+
+  const save = () => {
+    if (!form.name.trim()) { toast('Name required.','error'); return; }
+    if (form.id) { setPfc(ps => ps.map(p => p.id===form.id ? form : p)); toast('PFC updated.','success'); }
+    else { setPfc(ps => [...ps, { ...form, id:uid() }]); toast('PFC created.','success'); }
+    setModal(false);
+  };
+  const del = id => {
+    if (!window.confirm('Delete PFC?')) return;
+    setPfc(ps => ps.filter(p => p.id!==id)); toast('PFC deleted.','success');
+  };
+
+  const openDetail = p => { setActive(p); setDM(true); };
+
+  if (!project) return <EmptyState icon="✅" message="Select a project first." />;
+
+  return (
+    <div className="fade-in">
+      <PageHeader title="Pre-Functional Checklists (PFC)">
+        <Btn onClick={openNew}>+ New PFC</Btn>
+      </PageHeader>
+
+      {projectPfc.length===0
+        ? <EmptyState icon="✅" message="No PFC checklists yet." />
+        : (
+          <div className="grid gap-3">
+            {projectPfc.map(p => {
+              const asset = projectAssets.find(a => a.id===p.assetId);
+              const pass  = p.items.filter(i => i.status==='Pass').length;
+              const fail  = p.items.filter(i => i.status==='Fail').length;
+              return (
+                <div key={p.id} className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 hover:border-cx-200 cursor-pointer" onClick={() => openDetail(p)}>
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-slate-800">{p.name}</h3>
+                        <Badge label={p.status} color={statusColor(p.status)} />
+                      </div>
+                      {asset && <p className="text-xs text-slate-500 mt-0.5">Asset: {asset.tag} – {asset.name}</p>}
+                      <p className="text-xs text-slate-400 mt-1">
+                        {p.items.length} items · {pass} pass · {fail} fail · {fmtDate(p.createdDate)}
+                      </p>
+                    </div>
+                    <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                      <Btn size="sm" variant="ghost" onClick={() => openEdit(p)}>✏️</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => del(p.id)}>🗑️</Btn>
+                    </div>
+                  </div>
+                  {p.items.length > 0 && (
+                    <div className="mt-2 bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                      <div className="bg-cx-500 h-1.5" style={{ width:`${(pass/p.items.length)*100}%` }} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )
+      }
+
+      {/* Create/Edit Modal */}
+      <Modal title={form.id ? 'Edit PFC' : 'New PFC'} open={modal} onClose={() => setModal(false)} width="max-w-2xl">
+        <div className="grid grid-cols-2 gap-x-3 mb-3">
+          <div className="col-span-2">
+            <Field label="Checklist Name" required><Input value={form.name} onChange={f('name')} /></Field>
+          </div>
+          <Field label="Asset">
+            <Select value={form.assetId} onChange={f('assetId')}
+              options={projectAssets.map(a => ({ value:a.id, label:`${a.tag} – ${a.name}` }))} placeholder="-- None --" />
+          </Field>
+          <Field label="Status"><Select value={form.status} onChange={f('status')} options={PFC_STATUSES} /></Field>
+        </div>
+
+        {!form.id && (
+          <div className="flex gap-2 mb-3 items-end">
+            <div className="flex-1">
+              <Field label="Apply Template">
+                <Select value={template} onChange={setTemplate} options={Object.keys(PFC_TEMPLATES)} placeholder="-- Choose template --" />
+              </Field>
+            </div>
+            <Btn variant="outline" className="mb-3" onClick={applyTemplate}>Apply</Btn>
+          </div>
+        )}
+
+        <div className="border-t border-slate-100 pt-3">
+          <p className="text-xs font-semibold text-slate-500 mb-2">CHECKLIST ITEMS</p>
+          <div className="space-y-1 max-h-48 overflow-y-auto mb-2">
+            {form.items.map((item,idx) => (
+              <div key={item.id} className="flex items-center gap-2 bg-slate-50 rounded px-2 py-1.5">
+                <span className="text-xs text-slate-400 w-5 shrink-0">{idx+1}.</span>
+                <span className="text-xs text-slate-700 flex-1">{item.description}</span>
+                <Select value={item.status} onChange={s => updateItemStatus(item.id,s)} options={ITEM_STATUSES} />
+                <button onClick={() => removeItem(item.id)} className="text-slate-300 hover:text-red-500 ml-1">×</button>
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Input value={newItem} onChange={setNewItem} placeholder="Add checklist item…" />
+            <Btn variant="outline" onClick={addItem}>Add</Btn>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Btn variant="secondary" onClick={() => setModal(false)}>Cancel</Btn>
+          <Btn onClick={save}>{form.id ? 'Update' : 'Create'}</Btn>
+        </div>
+      </Modal>
+
+      {/* Detail Modal */}
+      <Modal title={active?.name||''} open={detailModal} onClose={() => setDM(false)} width="max-w-2xl">
+        {active && (
+          <div>
+            <div className="flex gap-3 mb-4 flex-wrap">
+              <Badge label={active.status} color={statusColor(active.status)} />
+              <span className="text-xs text-slate-400">{active.items.length} items · Created {fmtDate(active.createdDate)}</span>
+            </div>
+            <div className="space-y-2">
+              {active.items.map((item,idx) => (
+                <div key={item.id} className="flex items-start gap-3 bg-slate-50 rounded px-3 py-2">
+                  <span className="text-xs text-slate-400 w-5 shrink-0 mt-0.5">{idx+1}</span>
+                  <span className="text-xs text-slate-700 flex-1">{item.description}</span>
+                  <Badge label={item.status}
+                    color={item.status==='Pass'?'green':item.status==='Fail'?'red':item.status==='N/A'?'gray':'amber'} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FPT VIEW (Functional Performance Tests)
+══════════════════════════════════════════════════════════════════════ */
+const FPT_STATUSES = ['Draft','Scheduled','In Progress','Complete','Failed','Void'];
+
+function blankFpt(projectId) {
+  return { id:'', projectId, assetId:'', name:'', status:'Draft', scheduledDate:'', completedDate:'', items:[] };
+}
+
+function FPTView({ project, assets, fpt, setFpt }) {
+  const toast = useToast();
+  const [modal, setModal]  = useState(false);
+  const [detail, setDetail] = useState(null);
+  const [form, setForm]    = useState(blankFpt(project?.id));
+  const [newStep, setNewStep] = useState({ description:'', expected:'' });
+  const f = k => v => setForm(p => ({ ...p, [k]: v }));
+
+  const projectFpt    = fpt.filter(f => f.projectId===project?.id);
+  const projectAssets = assets.filter(a => a.projectId===project?.id);
+
+  const openNew  = () => { setForm(blankFpt(project?.id)); setModal(true); };
+  const openEdit = t => { setForm({ ...t, items:[...t.items.map(i=>({...i}))] }); setModal(true); };
+
+  const addStep = () => {
+    if (!newStep.description.trim()) return;
+    setForm(p => ({ ...p, items:[...p.items, { id:uid(), ...newStep, actual:'', status:'Pending', notes:'' }] }));
+    setNewStep({ description:'', expected:'' });
+  };
+  const removeStep = id => setForm(p => ({ ...p, items: p.items.filter(i => i.id!==id) }));
+  const updateStepStatus = (id, status) => setForm(p => ({ ...p, items: p.items.map(i => i.id===id ? {...i,status} : i) }));
+  const updateStepActual = (id, actual) => setForm(p => ({ ...p, items: p.items.map(i => i.id===id ? {...i,actual} : i) }));
+
+  const save = () => {
+    if (!form.name.trim()) { toast('Name required.','error'); return; }
+    if (form.id) { setFpt(fs => fs.map(f => f.id===form.id ? form : f)); toast('FPT updated.','success'); }
+    else { setFpt(fs => [...fs, { ...form, id:uid() }]); toast('FPT created.','success'); }
+    setModal(false);
+  };
+  const del = id => {
+    if (!window.confirm('Delete FPT?')) return;
+    setFpt(fs => fs.filter(f => f.id!==id)); toast('FPT deleted.','success');
+  };
+
+  if (!project) return <EmptyState icon="🔬" message="Select a project first." />;
+
+  return (
+    <div className="fade-in">
+      <PageHeader title="Functional Performance Tests (FPT)">
+        <Btn onClick={openNew}>+ New FPT</Btn>
+      </PageHeader>
+
+      {projectFpt.length===0
+        ? <EmptyState icon="🔬" message="No FPTs yet." />
+        : (
+          <div className="grid gap-3">
+            {projectFpt.map(t => {
+              const asset = projectAssets.find(a => a.id===t.assetId);
+              const pass  = t.items.filter(i => i.status==='Pass').length;
+              const fail  = t.items.filter(i => i.status==='Fail').length;
+              return (
+                <div key={t.id} className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 hover:border-cx-200 cursor-pointer" onClick={() => setDetail(t)}>
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-slate-800">{t.name}</h3>
+                        <Badge label={t.status} color={statusColor(t.status)} />
+                      </div>
+                      {asset && <p className="text-xs text-slate-500 mt-0.5">Asset: {asset.tag} – {asset.name}</p>}
+                      <p className="text-xs text-slate-400 mt-1">
+                        {t.items.length} steps · {pass} pass · {fail} fail
+                        {t.scheduledDate ? ` · Scheduled: ${fmtDate(t.scheduledDate)}` : ''}
+                      </p>
+                    </div>
+                    <div className="flex gap-1" onClick={e => e.stopPropagation()}>
+                      <Btn size="sm" variant="ghost" onClick={() => openEdit(t)}>✏️</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => del(t.id)}>🗑️</Btn>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      }
+
+      {/* Create/Edit Modal */}
+      <Modal title={form.id ? 'Edit FPT' : 'New FPT'} open={modal} onClose={() => setModal(false)} width="max-w-2xl">
+        <div className="grid grid-cols-2 gap-x-3 mb-3">
+          <div className="col-span-2">
+            <Field label="Test Name" required><Input value={form.name} onChange={f('name')} /></Field>
+          </div>
+          <Field label="Asset">
+            <Select value={form.assetId} onChange={f('assetId')}
+              options={projectAssets.map(a => ({ value:a.id, label:`${a.tag} – ${a.name}` }))} placeholder="-- None --" />
+          </Field>
+          <Field label="Status"><Select value={form.status} onChange={f('status')} options={FPT_STATUSES} /></Field>
+          <Field label="Scheduled Date"><Input type="date" value={form.scheduledDate} onChange={f('scheduledDate')} /></Field>
+          <Field label="Completed Date"><Input type="date" value={form.completedDate} onChange={f('completedDate')} /></Field>
+        </div>
+
+        <div className="border-t border-slate-100 pt-3">
+          <p className="text-xs font-semibold text-slate-500 mb-2">TEST STEPS</p>
+          <div className="space-y-1 max-h-40 overflow-y-auto mb-2">
+            {form.items.map((item,idx) => (
+              <div key={item.id} className="flex items-start gap-2 bg-slate-50 rounded px-2 py-1.5">
+                <span className="text-xs text-slate-400 w-5 shrink-0 mt-0.5">{idx+1}.</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-slate-700">{item.description}</p>
+                  {item.expected && <p className="text-xs text-slate-400">Expected: {item.expected}</p>}
+                </div>
+                <div className="flex gap-1 items-center shrink-0">
+                  <Select value={item.status} onChange={s => updateStepStatus(item.id,s)} options={ITEM_STATUSES} />
+                  <button onClick={() => removeStep(item.id)} className="text-slate-300 hover:text-red-500 ml-1 text-sm">×</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Input value={newStep.description} onChange={v => setNewStep(s=>({...s,description:v}))} placeholder="Step description…" />
+            <Input value={newStep.expected} onChange={v => setNewStep(s=>({...s,expected:v}))} placeholder="Expected result…" />
+          </div>
+          <Btn variant="outline" size="sm" className="mt-2" onClick={addStep}>Add Step</Btn>
+        </div>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Btn variant="secondary" onClick={() => setModal(false)}>Cancel</Btn>
+          <Btn onClick={save}>{form.id ? 'Update' : 'Create'}</Btn>
+        </div>
+      </Modal>
+
+      {/* Detail read-only */}
+      <Modal title={detail?.name||''} open={!!detail} onClose={() => setDetail(null)} width="max-w-2xl">
+        {detail && (
+          <div>
+            <div className="flex gap-3 mb-4 flex-wrap">
+              <Badge label={detail.status} color={statusColor(detail.status)} />
+              {detail.scheduledDate && <span className="text-xs text-slate-500">Scheduled: {fmtDate(detail.scheduledDate)}</span>}
+            </div>
+            <table className="w-full text-xs">
+              <thead className="bg-slate-50">
+                <tr>{['#','Step','Expected','Actual','Status'].map(h=>(
+                  <th key={h} className="px-2 py-1.5 text-left font-semibold text-slate-500">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                {detail.items.map((item,idx) => (
+                  <tr key={item.id} className="border-t border-slate-50">
+                    <td className="px-2 py-1.5 text-slate-400">{idx+1}</td>
+                    <td className="px-2 py-1.5 text-slate-700">{item.description}</td>
+                    <td className="px-2 py-1.5 text-slate-500">{item.expected||'—'}</td>
+                    <td className="px-2 py-1.5 text-slate-500">{item.actual||'—'}</td>
+                    <td className="px-2 py-1.5">
+                      <Badge label={item.status} color={item.status==='Pass'?'green':item.status==='Fail'?'red':'gray'} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   ISSUES VIEW
+══════════════════════════════════════════════════════════════════════ */
+const SEVERITIES = ['Critical','High','Medium','Low'];
+const PRIORITIES = ['Critical','High','Medium','Low'];
+const ISSUE_STATUSES = ['Open','In Progress','Resolved','Closed','Void'];
+
+function blankIssue(projectId) {
+  return { id:'', projectId, issueNum:'', title:'', discipline:'General', severity:'Medium', priority:'Medium',
+           status:'Open', assetId:'', assignedTo:'', dueDate:'', notes:'' };
+}
+
+function nextIssueNum(issues, projectId) {
+  const nums = issues.filter(i => i.projectId===projectId).map(i => parseInt((i.issueNum||'ISS-000').replace(/\D/g,''))||0);
+  return `ISS-${String(Math.max(0,...nums)+1).padStart(3,'0')}`;
+}
+
+function IssuesView({ project, assets, people, issues, setIssues }) {
+  const toast = useToast();
+  const [modal, setModal]     = useState(false);
+  const [form, setForm]       = useState(blankIssue(project?.id));
+  const [filter, setFilter]   = useState({ status:'', severity:'', search:'' });
+  const f = k => v => setForm(p => ({ ...p, [k]: v }));
+
+  const projectIssues = issues.filter(i => i.projectId===project?.id);
+  const projectAssets = assets.filter(a => a.projectId===project?.id);
+  const projectPeople = people.filter(p => p.projectId===project?.id);
+
+  const filtered = projectIssues.filter(i =>
+    (!filter.status   || i.status===filter.status) &&
+    (!filter.severity || i.severity===filter.severity) &&
+    (!filter.search   || i.title.toLowerCase().includes(filter.search.toLowerCase()) || i.issueNum.toLowerCase().includes(filter.search.toLowerCase()))
+  );
+
+  const openNew  = () => { setForm({ ...blankIssue(project?.id), issueNum:nextIssueNum(issues,project?.id) }); setModal(true); };
+  const openEdit = i  => { setForm({ ...i }); setModal(true); };
+
+  const save = () => {
+    if (!form.title.trim()) { toast('Title required.','error'); return; }
+    if (form.id) { setIssues(is => is.map(i => i.id===form.id ? form : i)); toast('Issue updated.','success'); }
+    else { setIssues(is => [...is, { ...form, id:uid() }]); toast('Issue created.','success'); }
+    setModal(false);
+  };
+  const del = id => {
+    if (!window.confirm('Delete issue?')) return;
+    setIssues(is => is.filter(i => i.id!==id)); toast('Issue deleted.','success');
+  };
+
+  const exportXlsx = () => {
+    if (typeof XLSX==='undefined') { toast('SheetJS not loaded.','error'); return; }
+    const ws = XLSX.utils.json_to_sheet(filtered.map(i => ({
+      'Issue #':i.issueNum, Title:i.title, Discipline:i.discipline, Severity:i.severity,
+      Priority:i.priority, Status:i.status, 'Due Date':fmtDate(i.dueDate), Notes:i.notes
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Issues');
+    XLSX.writeFile(wb, 'issues_export.xlsx');
+    toast('Issues exported.','success');
+  };
+
+  const importXlsx = e => {
+    const file = e.target.files[0]; if (!file) return;
+    if (typeof XLSX==='undefined') { toast('SheetJS not loaded.','error'); return; }
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        const wb   = XLSX.read(evt.target.result, { type:'array' });
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+        let count = 0;
+        const newIssues = rows.map(r => {
+          count++;
+          return {
+            id:uid(), projectId:project?.id,
+            issueNum: r['Issue #']||r.issueNum||nextIssueNum(issues,project?.id),
+            title:    r.Title||r.title||'',
+            discipline:r.Discipline||r.discipline||'General',
+            severity: r.Severity||r.severity||'Medium',
+            priority: r.Priority||r.priority||'Medium',
+            status:   r.Status||r.status||'Open',
+            assetId:'', assignedTo:'',
+            dueDate:  r['Due Date']||r.dueDate||'',
+            notes:    r.Notes||r.notes||''
+          };
+        });
+        setIssues(is => [...is, ...newIssues]);
+        toast(`Imported ${count} issues.`,'success');
+      } catch(err) { toast('Import failed: '+err.message,'error'); }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value='';
+  };
+
+  if (!project) return <EmptyState icon="🚨" message="Select a project first." />;
+
+  return (
+    <div className="fade-in">
+      <PageHeader title="Issues">
+        <label className="cursor-pointer inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded bg-slate-200 text-slate-700 hover:bg-slate-300">
+          📥 Import <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={importXlsx} />
+        </label>
+        <Btn variant="secondary" onClick={exportXlsx}>📤 Export</Btn>
+        <Btn onClick={openNew}>+ New Issue</Btn>
+      </PageHeader>
+
+      <div className="flex gap-3 mb-4 flex-wrap">
+        <Input value={filter.search} onChange={v => setFilter(f=>({...f,search:v}))} placeholder="Search issues…" className="w-52" />
+        <Select value={filter.status} onChange={v => setFilter(f=>({...f,status:v}))}
+          options={[{value:'',label:'All Statuses'},...ISSUE_STATUSES.map(s=>({value:s,label:s}))]} />
+        <Select value={filter.severity} onChange={v => setFilter(f=>({...f,severity:v}))}
+          options={[{value:'',label:'All Severities'},...SEVERITIES.map(s=>({value:s,label:s}))]} />
+        <span className="text-xs text-slate-400 self-center">{filtered.length} / {projectIssues.length} issues</span>
+      </div>
+
+      {filtered.length===0
+        ? <EmptyState icon="🚨" message="No issues found." />
+        : (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50">
+                <tr>{['#','Title','Discipline','Severity','Priority','Status','Due',''].map(h=>(
+                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                {filtered.map(i => (
+                  <tr key={i.id} className="border-t border-slate-50 hover:bg-slate-50">
+                    <td className="px-3 py-2 font-mono text-xs text-slate-500">{i.issueNum}</td>
+                    <td className="px-3 py-2 font-medium text-slate-800 max-w-xs truncate">{i.title}</td>
+                    <td className="px-3 py-2"><Badge label={i.discipline} color={disciplineColor(i.discipline)} /></td>
+                    <td className="px-3 py-2"><Badge label={i.severity} color={severityColor(i.severity)} /></td>
+                    <td className="px-3 py-2"><Badge label={i.priority} color={severityColor(i.priority)} /></td>
+                    <td className="px-3 py-2"><Badge label={i.status} color={statusColor(i.status)} /></td>
+                    <td className="px-3 py-2 text-xs text-slate-400 whitespace-nowrap">{fmtDate(i.dueDate)}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex gap-1">
+                        <Btn size="sm" variant="ghost" onClick={() => openEdit(i)}>✏️</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => del(i.id)}>🗑️</Btn>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+
+      <Modal title={form.id ? 'Edit Issue' : 'New Issue'} open={modal} onClose={() => setModal(false)} width="max-w-xl">
+        <div className="grid grid-cols-2 gap-x-3">
+          <Field label="Issue #"><Input value={form.issueNum} onChange={f('issueNum')} /></Field>
+          <Field label="Status"><Select value={form.status} onChange={f('status')} options={ISSUE_STATUSES} /></Field>
+          <div className="col-span-2">
+            <Field label="Title" required><Input value={form.title} onChange={f('title')} /></Field>
+          </div>
+          <Field label="Discipline"><Select value={form.discipline} onChange={f('discipline')} options={DISCIPLINES} /></Field>
+          <Field label="Severity"><Select value={form.severity} onChange={f('severity')} options={SEVERITIES} /></Field>
+          <Field label="Priority"><Select value={form.priority} onChange={f('priority')} options={PRIORITIES} /></Field>
+          <Field label="Asset">
+            <Select value={form.assetId} onChange={f('assetId')}
+              options={projectAssets.map(a=>({value:a.id,label:`${a.tag} – ${a.name}`}))} placeholder="-- None --" />
+          </Field>
+          <Field label="Assigned To">
+            <Select value={form.assignedTo} onChange={f('assignedTo')}
+              options={projectPeople.map(p=>({value:p.id,label:p.name}))} placeholder="-- Unassigned --" />
+          </Field>
+          <Field label="Due Date"><Input type="date" value={form.dueDate} onChange={f('dueDate')} /></Field>
+          <div className="col-span-2"><Field label="Notes"><Textarea value={form.notes} onChange={f('notes')} rows={2} /></Field></div>
+        </div>
+        <div className="flex justify-end gap-2 mt-2">
+          <Btn variant="secondary" onClick={() => setModal(false)}>Cancel</Btn>
+          <Btn onClick={save}>{form.id ? 'Update' : 'Create'}</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DOCUMENTS VIEW
+══════════════════════════════════════════════════════════════════════ */
+const DOC_CATEGORIES = ['Cx Plan','Cx Spec','Design Document','Submittal','RFI','ASI','O&M Manual',
+  'Test Report','Training Record','Meeting Minutes','Photo','Other'];
+
+function blankDoc(projectId, userId) {
+  return { id:'', projectId, name:'', category:'Other', uploadDate:today(), uploadedBy:userId||'', size:'—', notes:'' };
+}
+
+function DocumentsView({ project, people, docs, setDocs, userId }) {
+  const toast = useToast();
+  const [modal, setModal]   = useState(false);
+  const [form, setForm]     = useState(blankDoc(project?.id, userId));
+  const [filter, setFilter] = useState('');
+  const f = k => v => setForm(p => ({ ...p, [k]: v }));
+
+  const projectDocs   = docs.filter(d => d.projectId===project?.id);
+  const projectPeople = people.filter(p => p.projectId===project?.id);
+  const filtered      = projectDocs.filter(d =>
+    !filter || d.name.toLowerCase().includes(filter.toLowerCase()) || d.category.toLowerCase().includes(filter.toLowerCase())
+  );
+
+  const openNew  = () => { setForm(blankDoc(project?.id,userId)); setModal(true); };
+  const openEdit = d  => { setForm({ ...d }); setModal(true); };
+  const save = () => {
+    if (!form.name.trim()) { toast('Document name required.','error'); return; }
+    if (form.id) { setDocs(ds => ds.map(d => d.id===form.id ? form : d)); toast('Document updated.','success'); }
+    else { setDocs(ds => [...ds, { ...form, id:uid() }]); toast('Document added.','success'); }
+    setModal(false);
+  };
+  const del = id => {
+    if (!window.confirm('Remove document?')) return;
+    setDocs(ds => ds.filter(d => d.id!==id)); toast('Document removed.','success');
+  };
+
+  const exportXlsx = () => {
+    if (typeof XLSX==='undefined') { toast('SheetJS not loaded.','error'); return; }
+    const ws = XLSX.utils.json_to_sheet(filtered.map(d => ({
+      Name:d.name, Category:d.category, 'Upload Date':fmtDate(d.uploadDate), Size:d.size, Notes:d.notes
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Documents');
+    XLSX.writeFile(wb, 'documents_export.xlsx');
+    toast('Documents exported.','success');
+  };
+
+  const importXlsx = e => {
+    const file = e.target.files[0]; if (!file) return;
+    if (typeof XLSX==='undefined') { toast('SheetJS not loaded.','error'); return; }
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        const wb   = XLSX.read(evt.target.result, { type:'array' });
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+        const newDocs = rows.map(r => ({
+          id:uid(), projectId:project?.id,
+          name:     r.Name||r.name||'',
+          category: r.Category||r.category||'Other',
+          uploadDate: r['Upload Date']||r.uploadDate||today(),
+          uploadedBy: userId||'',
+          size:     r.Size||r.size||'—',
+          notes:    r.Notes||r.notes||''
+        }));
+        setDocs(ds => [...ds, ...newDocs]);
+        toast(`Imported ${newDocs.length} documents.`,'success');
+      } catch(err) { toast('Import failed: '+err.message,'error'); }
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value='';
+  };
+
+  if (!project) return <EmptyState icon="📄" message="Select a project first." />;
+
+  return (
+    <div className="fade-in">
+      <PageHeader title="Documents">
+        <label className="cursor-pointer inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium rounded bg-slate-200 text-slate-700 hover:bg-slate-300">
+          📥 Import <input type="file" className="hidden" accept=".xlsx,.xls,.csv" onChange={importXlsx} />
+        </label>
+        <Btn variant="secondary" onClick={exportXlsx}>📤 Export</Btn>
+        <Btn onClick={openNew}>+ Add Document</Btn>
+      </PageHeader>
+
+      <div className="flex gap-3 mb-4">
+        <Input value={filter} onChange={setFilter} placeholder="Search documents…" className="w-64" />
+      </div>
+
+      {filtered.length===0
+        ? <EmptyState icon="📄" message="No documents yet." />
+        : (
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50">
+                <tr>{['Name','Category','Uploaded','Size','Notes',''].map(h=>(
+                  <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-500">{h}</th>
+                ))}</tr>
+              </thead>
+              <tbody>
+                {filtered.map(d => {
+                  const up = people.find(p => p.id===d.uploadedBy);
+                  return (
+                    <tr key={d.id} className="border-t border-slate-50 hover:bg-slate-50">
+                      <td className="px-3 py-2 font-medium text-slate-800">{d.name}</td>
+                      <td className="px-3 py-2"><Badge label={d.category} color="blue" /></td>
+                      <td className="px-3 py-2 text-xs text-slate-500">{fmtDate(d.uploadDate)}{up?` · ${up.name}`:''}</td>
+                      <td className="px-3 py-2 text-xs text-slate-500">{d.size}</td>
+                      <td className="px-3 py-2 text-xs text-slate-400 max-w-xs truncate">{d.notes||'—'}</td>
+                      <td className="px-3 py-2">
+                        <div className="flex gap-1">
+                          <Btn size="sm" variant="ghost" onClick={() => openEdit(d)}>✏️</Btn>
+                          <Btn size="sm" variant="ghost" onClick={() => del(d.id)}>🗑️</Btn>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      }
+
+      <Modal title={form.id ? 'Edit Document' : 'Add Document'} open={modal} onClose={() => setModal(false)}>
+        <Field label="Document Name" required><Input value={form.name} onChange={f('name')} /></Field>
+        <Field label="Category"><Select value={form.category} onChange={f('category')} options={DOC_CATEGORIES} /></Field>
+        <Field label="Upload Date"><Input type="date" value={form.uploadDate} onChange={f('uploadDate')} /></Field>
+        <Field label="Uploaded By">
+          <Select value={form.uploadedBy} onChange={f('uploadedBy')}
+            options={projectPeople.map(p=>({value:p.id,label:p.name}))} placeholder="-- Select --" />
+        </Field>
+        <Field label="File Size"><Input value={form.size} onChange={f('size')} placeholder="e.g. 2.5 MB" /></Field>
+        <Field label="Notes"><Textarea value={form.notes} onChange={f('notes')} rows={2} /></Field>
+        <div className="flex justify-end gap-2 mt-2">
+          <Btn variant="secondary" onClick={() => setModal(false)}>Cancel</Btn>
+          <Btn onClick={save}>{form.id ? 'Update' : 'Add'}</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CPM VIEW (Commissioning Progress Matrix)
+══════════════════════════════════════════════════════════════════════ */
+const DELIVERABLES   = ['Owner Project Requirements','Basis of Design','Cx Plan','Pre-Functional Checklist',
+  'Functional Performance Test','Issues Log','Cx Report','Training Record','O&M Review','Close-Out Report'];
+const CPM_STATUSES   = ['Not Started','Scheduled','In Progress','Complete','Void','N/A'];
+
+function blankCpm(projectId) {
+  return { id:'', projectId, assetId:'', deliverable:DELIVERABLES[0], responsible:'', plannedDate:'', actualDate:'', status:'Not Started' };
+}
+
+function CPMView({ project, assets, people, cpm, setCpm }) {
+  const toast = useToast();
+  const [modal, setModal] = useState(false);
+  const [form, setForm]   = useState(blankCpm(project?.id));
+  const [groupBy, setGroupBy] = useState('asset');
+  const f = k => v => setForm(p => ({ ...p, [k]: v }));
+
+  const projectCpm    = cpm.filter(c => c.projectId===project?.id);
+  const projectAssets = assets.filter(a => a.projectId===project?.id);
+  const projectPeople = people.filter(p => p.projectId===project?.id);
+
+  const openNew  = () => { setForm(blankCpm(project?.id)); setModal(true); };
+  const openEdit = c  => { setForm({ ...c }); setModal(true); };
+  const save = () => {
+    if (!form.deliverable) { toast('Deliverable required.','error'); return; }
+    if (form.id) { setCpm(cs => cs.map(c => c.id===form.id ? form : c)); toast('CPM row updated.','success'); }
+    else { setCpm(cs => [...cs, { ...form, id:uid() }]); toast('CPM row added.','success'); }
+    setModal(false);
+  };
+  const del = id => {
+    if (!window.confirm('Remove CPM row?')) return;
+    setCpm(cs => cs.filter(c => c.id!==id)); toast('Row removed.','success');
+  };
+
+  const exportXlsx = () => {
+    if (typeof XLSX==='undefined') { toast('SheetJS not loaded.','error'); return; }
+    const ws = XLSX.utils.json_to_sheet(projectCpm.map(c => {
+      const a = projectAssets.find(x => x.id===c.assetId);
+      const p = projectPeople.find(x => x.id===c.responsible);
+      return { Asset:a?`${a.tag} – ${a.name}`:'—', Deliverable:c.deliverable,
+        Responsible:p?.name||'—', Planned:fmtDate(c.plannedDate), Actual:fmtDate(c.actualDate), Status:c.status };
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'CPM');
+    XLSX.writeFile(wb, 'cpm_export.xlsx');
+    toast('CPM exported.','success');
+  };
+
+  if (!project) return <EmptyState icon="📊" message="Select a project first." />;
+
+  /* Group data */
+  let groups = [];
+  if (groupBy==='asset') {
+    const byAsset = {};
+    projectCpm.forEach(c => {
+      const key = c.assetId||'__none__';
+      if (!byAsset[key]) byAsset[key] = [];
+      byAsset[key].push(c);
+    });
+    const noAsset = byAsset['__none__']||[];
+    projectAssets.forEach(a => {
+      if (byAsset[a.id]?.length) groups.push({ label:`${a.tag} – ${a.name}`, rows:byAsset[a.id] });
+    });
+    if (noAsset.length) groups.push({ label:'General / No Asset', rows:noAsset });
+  } else {
+    groups = [{ label:'All Deliverables', rows:projectCpm }];
+  }
+
+  return (
+    <div className="fade-in">
+      <PageHeader title="Commissioning Progress Matrix (CPM)">
+        <Select value={groupBy} onChange={setGroupBy} options={[{value:'asset',label:'Group by Asset'},{value:'all',label:'All Rows'}]} />
+        <Btn variant="secondary" onClick={exportXlsx}>📤 Export</Btn>
+        <Btn onClick={openNew}>+ Add Row</Btn>
+      </PageHeader>
+
+      {/* Summary bar */}
+      <div className="flex gap-3 mb-4 flex-wrap">
+        {CPM_STATUSES.map(s => {
+          const cnt = projectCpm.filter(c => c.status===s).length;
+          if (!cnt) return null;
+          return <div key={s} className="flex items-center gap-1 text-xs"><Badge label={s} color={statusColor(s)} /><span className="text-slate-500">{cnt}</span></div>;
+        })}
+        <span className="text-xs text-slate-400 self-center">Total: {projectCpm.length}</span>
+      </div>
+
+      {projectCpm.length===0
+        ? <EmptyState icon="📊" message="No CPM rows yet." />
+        : groups.map((g,gi) => (
+          <div key={gi} className="mb-5">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">{g.label}</h3>
+            <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50">
+                  <tr>{['Deliverable','Responsible','Planned','Actual','Status',''].map(h=>(
+                    <th key={h} className="px-3 py-2 text-left text-xs font-semibold text-slate-500 whitespace-nowrap">{h}</th>
+                  ))}</tr>
+                </thead>
+                <tbody>
+                  {g.rows.map(c => {
+                    const person = projectPeople.find(p => p.id===c.responsible);
+                    return (
+                      <tr key={c.id} className="border-t border-slate-50 hover:bg-slate-50">
+                        <td className="px-3 py-2 font-medium text-slate-800">{c.deliverable}</td>
+                        <td className="px-3 py-2 text-slate-500 text-xs">{person?.name||c.responsible||'—'}</td>
+                        <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fmtDate(c.plannedDate)}</td>
+                        <td className="px-3 py-2 text-xs text-slate-500 whitespace-nowrap">{fmtDate(c.actualDate)||'—'}</td>
+                        <td className="px-3 py-2"><Badge label={c.status} color={statusColor(c.status)} /></td>
+                        <td className="px-3 py-2">
+                          <div className="flex gap-1">
+                            <Btn size="sm" variant="ghost" onClick={() => openEdit(c)}>✏️</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => del(c.id)}>🗑️</Btn>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))
+      }
+
+      <Modal title={form.id ? 'Edit CPM Row' : 'New CPM Row'} open={modal} onClose={() => setModal(false)}>
+        <Field label="Deliverable" required>
+          <Select value={form.deliverable} onChange={f('deliverable')} options={DELIVERABLES} />
+        </Field>
+        <Field label="Asset">
+          <Select value={form.assetId} onChange={f('assetId')}
+            options={projectAssets.map(a=>({value:a.id,label:`${a.tag} – ${a.name}`}))} placeholder="-- General --" />
+        </Field>
+        <Field label="Responsible">
+          <Select value={form.responsible} onChange={f('responsible')}
+            options={projectPeople.map(p=>({value:p.id,label:p.name}))} placeholder="-- Select --" />
+        </Field>
+        <Field label="Status"><Select value={form.status} onChange={f('status')} options={CPM_STATUSES} /></Field>
+        <Field label="Planned Date"><Input type="date" value={form.plannedDate} onChange={f('plannedDate')} /></Field>
+        <Field label="Actual Date"><Input type="date" value={form.actualDate} onChange={f('actualDate')} /></Field>
+        <div className="flex justify-end gap-2 mt-2">
+          <Btn variant="secondary" onClick={() => setModal(false)}>Cancel</Btn>
+          <Btn onClick={save}>{form.id ? 'Update' : 'Add'}</Btn>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MAIN APP
+══════════════════════════════════════════════════════════════════════ */
+function App() {
+  initStore();
+
+  const [user, setUser]       = useState(() => LS.get('cx_user', null));
+  const [page, setPage]       = useState('dashboard');
+  const [currentPid, setCPid] = useState(() => LS.get('cx_current_pid', null));
+
+  /* Persisted state slices */
+  const [projects,  setProjectsRaw]  = useState(() => LS.get('cx_projects',  [SEED_PROJECT]));
+  const [companies, setCompaniesRaw] = useState(() => LS.get('cx_companies', SEED_COMPANIES));
+  const [people,    setPeopleRaw]    = useState(() => LS.get('cx_people',    SEED_PEOPLE));
+  const [assets,    setAssetsRaw]    = useState(() => LS.get('cx_assets',    SEED_ASSETS));
+  const [issues,    setIssuesRaw]    = useState(() => LS.get('cx_issues',    SEED_ISSUES));
+  const [docs,      setDocsRaw]      = useState(() => LS.get('cx_docs',      SEED_DOCUMENTS));
+  const [pfc,       setPfcRaw]       = useState(() => LS.get('cx_pfc',       SEED_PFC));
+  const [fpt,       setFptRaw]       = useState(() => LS.get('cx_fpt',       SEED_FPT));
+  const [cpm,       setCpmRaw]       = useState(() => LS.get('cx_cpm',       SEED_CPM));
+
+  /* Auto-persist wrappers */
+  const persist = (key, setter) => v => {
+    const next = typeof v === 'function' ? v([]) : v; // let React handle function updates
+    setter(v);
+    // we'll use useEffect to persist
+  };
+
+  // Persist to localStorage whenever slices change
+  useEffect(() => { LS.set('cx_projects',  projects);  }, [projects]);
+  useEffect(() => { LS.set('cx_companies', companies); }, [companies]);
+  useEffect(() => { LS.set('cx_people',    people);    }, [people]);
+  useEffect(() => { LS.set('cx_assets',    assets);    }, [assets]);
+  useEffect(() => { LS.set('cx_issues',    issues);    }, [issues]);
+  useEffect(() => { LS.set('cx_docs',      docs);      }, [docs]);
+  useEffect(() => { LS.set('cx_pfc',       pfc);       }, [pfc]);
+  useEffect(() => { LS.set('cx_fpt',       fpt);       }, [fpt]);
+  useEffect(() => { LS.set('cx_cpm',       cpm);       }, [cpm]);
+  useEffect(() => { LS.set('cx_user',      user);      }, [user]);
+  useEffect(() => { LS.set('cx_current_pid', currentPid); }, [currentPid]);
+
+  const currentProject = projects.find(p => p.id===currentPid) || projects[0] || null;
+  if (!currentPid && projects[0]) setCPid(projects[0].id);
+
+  const handleLogin  = u => { setUser(u); setPage('dashboard'); };
+  const handleLogout = () => { setUser(null); };
+
+  const projectAssets  = assets.filter(a => a.projectId===currentProject?.id);
+  const projectIssues  = issues.filter(i => i.projectId===currentProject?.id);
+  const projectPfc     = pfc.filter(p => p.projectId===currentProject?.id);
+  const projectFpt     = fpt.filter(f => f.projectId===currentProject?.id);
+  const projectCpm     = cpm.filter(c => c.projectId===currentProject?.id);
+
+  if (!user) return (
+    <ToastProvider>
+      <LoginScreen onLogin={handleLogin} />
+    </ToastProvider>
+  );
+
+  return (
+    <ToastProvider>
+      <div className="flex h-screen overflow-hidden bg-slate-50">
+        <Sidebar
+          active={page}
+          onNav={setPage}
+          user={user}
+          onLogout={handleLogout}
+          project={currentProject}
+        />
+        <main className="flex-1 overflow-y-auto p-6">
+          {page==='dashboard' && (
+            <Dashboard
+              project={currentProject}
+              assets={projectAssets}
+              issues={projectIssues}
+              pfc={projectPfc}
+              fpt={projectFpt}
+              cpm={projectCpm}
+              onNav={setPage}
+            />
+          )}
+          {page==='projects' && (
+            <ProjectsView
+              projects={projects}
+              setProjects={setProjectsRaw}
+              currentProjectId={currentPid}
+              setCurrentProjectId={setCPid}
+            />
+          )}
+          {page==='people' && (
+            <PeopleView
+              project={currentProject}
+              companies={companies}
+              setCompanies={setCompaniesRaw}
+              people={people}
+              setPeople={setPeopleRaw}
+            />
+          )}
+          {page==='assets' && (
+            <AssetsView
+              project={currentProject}
+              assets={assets}
+              setAssets={setAssetsRaw}
+            />
+          )}
+          {page==='pfc' && (
+            <PFCView
+              project={currentProject}
+              assets={assets}
+              pfc={pfc}
+              setPfc={setPfcRaw}
+            />
+          )}
+          {page==='fpt' && (
+            <FPTView
+              project={currentProject}
+              assets={assets}
+              fpt={fpt}
+              setFpt={setFptRaw}
+            />
+          )}
+          {page==='issues' && (
+            <IssuesView
+              project={currentProject}
+              assets={assets}
+              people={people}
+              issues={issues}
+              setIssues={setIssuesRaw}
+            />
+          )}
+          {page==='documents' && (
+            <DocumentsView
+              project={currentProject}
+              people={people}
+              docs={docs}
+              setDocs={setDocsRaw}
+              userId={people.find(p => p.email===user.email)?.id || ''}
+            />
+          )}
+          {page==='cpm' && (
+            <CPMView
+              project={currentProject}
+              assets={assets}
+              people={people}
+              cpm={cpm}
+              setCpm={setCpmRaw}
+            />
+          )}
+        </main>
+      </div>
+    </ToastProvider>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+</script>
+</body>
+</html>
