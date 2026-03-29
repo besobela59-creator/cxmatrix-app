@@ -635,7 +635,7 @@ function ProjectsView({ projects, setProjects, currentProjectId, setCurrentProje
 /* ═══════════════════════════════════════════════════════════════════
    PEOPLE & COMPANIES
 ══════════════════════════════════════════════════════════════════════ */
-const CO_TYPES     = ['Owner','Cx Agent','Engineer','Contractor','Sub-Contractor','Supplier','Other'];
+const COMPANY_TYPES = ['Owner','CxAgent','Engineer','Contractor','Sub-Contractor','Supplier','Other'];
 const PEOPLE_ROLES = ROLES.concat(['Project Owner','Design Engineer','Contractor PM','Site Foreman','Other']);
 
 function PeopleView({ project, companies, setCompanies, people, setPeople }) {
@@ -772,7 +772,7 @@ function PeopleView({ project, companies, setCompanies, people, setPeople }) {
       {/* Company Modal */}
       <Modal title={coForm.id ? 'Edit Company' : 'New Company'} open={coModal} onClose={() => setCoModal(false)}>
         <Field label="Company Name" required><Input value={coForm.name||''} onChange={cf('name')} /></Field>
-        <Field label="Type"><Select value={coForm.type||''} onChange={cf('type')} options={CO_TYPES} /></Field>
+        <Field label="Type"><Select value={coForm.type||''} onChange={cf('type')} options={COMPANY_TYPES} /></Field>
         <Field label="Email"><Input value={coForm.email||''} onChange={cf('email')} type="email" /></Field>
         <Field label="Phone"><Input value={coForm.phone||''} onChange={cf('phone')} /></Field>
         <Field label="Address"><Input value={coForm.address||''} onChange={cf('address')} /></Field>
