@@ -1,0 +1,213 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  name      String
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Company {
+  id           String           @id @default(cuid())
+  name         String
+  address      String?
+  phone        String?
+  email        String?
+  website      String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  projects     ProjectCompany[]
+  people       Person[]
+
+  @@map("companies")
+}
+
+model Person {
+  id        String          @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String?
+  phone     String?
+  role      String?
+  companyId String?
+  company   Company?        @relation(fields: [companyId], references: [id])
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+  projects  ProjectPerson[]
+
+  @@map("people")
+}
+
+model Project {
+  id               String           @id @default(cuid())
+  name             String
+  description      String?
+  status           String           @default("active")
+  phase            String?
+  clientName       String?
+  siteAddress      String?
+  startDate        DateTime?
+  endDate          DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  companies        ProjectCompany[]
+  people           ProjectPerson[]
+  assets           Asset[]
+  issues           Issue[]
+  checklists       Checklist[]
+  testRecords      TestRecord[]
+  fileRecords      FileRecord[]
+
+  @@map("projects")
+}
+
+model ProjectCompany {
+  id        String   @id @default(cuid())
+  projectId String
+  companyId String
+  role      String?
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, companyId])
+  @@map("project_companies")
+}
+
+model ProjectPerson {
+  id        String   @id @default(cuid())
+  projectId String
+  personId  String
+  role      String?
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  person    Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([projectId, personId])
+  @@map("project_people")
+}
+
+model Asset {
+  id          String       @id @default(cuid())
+  tag         String
+  name        String
+  description String?
+  discipline  String?
+  system      String?
+  location    String?
+  status      String       @default("pending")
+  projectId   String
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  checklists  Checklist[]
+  testRecords TestRecord[]
+  issues      Issue[]
+
+  @@map("assets")
+}
+
+model Issue {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      String   @default("open")
+  severity    String   @default("medium")
+  priority    String   @default("normal")
+  projectId   String
+  assetId     String?
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  asset       Asset?   @relation(fields: [assetId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("issues")
+}
+
+model ChecklistTemplate {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  discipline  String?
+  lines       Json        @default("[]")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  checklists  Checklist[]
+
+  @@map("checklist_templates")
+}
+
+model Checklist {
+  id         String            @id @default(cuid())
+  templateId String?
+  projectId  String
+  assetId    String?
+  status     String            @default("pending")
+  responses  Json              @default("{}")
+  completedAt DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  template   ChecklistTemplate? @relation(fields: [templateId], references: [id])
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  asset      Asset?            @relation(fields: [assetId], references: [id])
+
+  @@map("checklists")
+}
+
+model TestTemplate {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  discipline  String?
+  steps       Json         @default("[]")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  testRecords TestRecord[]
+
+  @@map("test_templates")
+}
+
+model TestRecord {
+  id          String       @id @default(cuid())
+  templateId  String?
+  projectId   String
+  assetId     String?
+  status      String       @default("pending")
+  results     Json         @default("{}")
+  testedAt    DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  template    TestTemplate? @relation(fields: [templateId], references: [id])
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  asset       Asset?       @relation(fields: [assetId], references: [id])
+
+  @@map("test_records")
+}
+
+model FileRecord {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  mimeType  String?
+  size      Int?
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@map("file_records")
+}
