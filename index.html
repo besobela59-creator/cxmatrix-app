@@ -1,11 +1,1699 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CXMatrix App</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CxMatrix - Commissioning Management</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    /* ─── Reset & Base ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #1e293b; background: #f1f5f9; }
+
+    /* ─── Layout Shell ──────────────────────────────────────────────────────── */
+    #app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    #topnav { height: 56px; background: #0f172a; display: flex; align-items: center; padding: 0 20px; gap: 16px; flex-shrink: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+    #topnav .brand { color: #fff; font-size: 20px; font-weight: 700; letter-spacing: .5px; display: flex; align-items: center; gap: 8px; text-decoration: none; }
+    #topnav .brand i { color: #3b82f6; }
+    #topnav .nav-spacer { flex: 1; }
+    #topnav .nav-user { color: #94a3b8; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+    #topnav .nav-user i { color: #3b82f6; font-size: 16px; }
+
+    #body-row { display: flex; flex: 1; overflow: hidden; }
+
+    /* ─── Sidebar ───────────────────────────────────────────────────────────── */
+    #sidebar { width: 220px; background: #0f172a; display: flex; flex-direction: column; padding: 16px 0; flex-shrink: 0; overflow-y: auto; }
+    #sidebar .sidebar-section-label { color: #475569; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; padding: 8px 20px 4px; margin-top: 8px; }
+    #sidebar a { display: flex; align-items: center; gap: 10px; color: #94a3b8; text-decoration: none; padding: 9px 20px; font-size: 13px; font-weight: 500; border-left: 3px solid transparent; transition: background .15s, color .15s; cursor: pointer; }
+    #sidebar a:hover { background: rgba(255,255,255,.05); color: #e2e8f0; }
+    #sidebar a.active { background: rgba(59,130,246,.12); color: #60a5fa; border-left-color: #3b82f6; }
+    #sidebar a i { width: 16px; text-align: center; font-size: 14px; }
+    #sidebar .sidebar-back { color: #64748b !important; font-size: 12px !important; margin-bottom: 8px; }
+    #sidebar .sidebar-back:hover { color: #94a3b8 !important; }
+    #sidebar .sidebar-divider { border: none; border-top: 1px solid #1e293b; margin: 8px 0; }
+
+    /* ─── Main Content ──────────────────────────────────────────────────────── */
+    #main-content { flex: 1; overflow-y: auto; padding: 28px 32px; }
+
+    /* ─── Page Header ───────────────────────────────────────────────────────── */
+    .page-header { display: flex; align-items: center; margin-bottom: 24px; gap: 12px; flex-wrap: wrap; }
+    .page-header h1 { font-size: 22px; font-weight: 700; color: #0f172a; flex: 1; min-width: 180px; }
+    .page-header .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ─── Buttons ───────────────────────────────────────────────────────────── */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border-radius: 6px; border: none; font-size: 13px; font-weight: 500; cursor: pointer; transition: background .15s, opacity .15s; text-decoration: none; white-space: nowrap; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: #1e40af; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #1d4ed8; }
+    .btn-secondary { background: #e2e8f0; color: #334155; }
+    .btn-secondary:hover:not(:disabled) { background: #cbd5e1; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover:not(:disabled) { background: #b91c1c; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover:not(:disabled) { background: #15803d; }
+    .btn-warning { background: #d97706; color: #fff; }
+    .btn-warning:hover:not(:disabled) { background: #b45309; }
+    .btn-ghost { background: transparent; color: #64748b; border: 1px solid #e2e8f0; }
+    .btn-ghost:hover:not(:disabled) { background: #f1f5f9; color: #334155; }
+    .btn-sm { padding: 4px 10px; font-size: 12px; }
+    .btn-icon { padding: 6px 8px; }
+
+    /* ─── Toolbar / Filter Bar ──────────────────────────────────────────────── */
+    .toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .toolbar .search-wrap { position: relative; flex: 1; min-width: 180px; max-width: 300px; }
+    .toolbar .search-wrap i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px; }
+    .toolbar input[type=text], .toolbar input[type=search] { width: 100%; padding: 7px 10px 7px 32px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; color: #334155; background: #fff; }
+    .toolbar input[type=text]:focus, .toolbar input[type=search]:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.15); }
+    .toolbar select { padding: 7px 28px 7px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; color: #334155; background: #fff; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; cursor: pointer; }
+    .toolbar select:focus { outline: none; border-color: #3b82f6; }
+
+    /* ─── Bulk Toolbar ──────────────────────────────────────────────────────── */
+    .bulk-toolbar { display: none; align-items: center; gap: 10px; background: #1e3a8a; color: #fff; padding: 10px 16px; border-radius: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .bulk-toolbar.visible { display: flex; }
+    .bulk-toolbar .bulk-count { font-size: 13px; font-weight: 600; flex: 1; min-width: 120px; }
+    .bulk-toolbar .btn-ghost { border-color: rgba(255,255,255,.3); color: #e2e8f0; }
+    .bulk-toolbar .btn-ghost:hover { background: rgba(255,255,255,.1); color: #fff; }
+
+    /* ─── Table ─────────────────────────────────────────────────────────────── */
+    .table-wrap { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.07); overflow: hidden; }
+    .table-wrap table { width: 100%; border-collapse: collapse; }
+    .table-wrap th { background: #f8fafc; color: #475569; font-size: 11px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; padding: 11px 14px; text-align: left; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+    .table-wrap td { padding: 11px 14px; border-bottom: 1px solid #f1f5f9; color: #334155; font-size: 13px; vertical-align: middle; }
+    .table-wrap tr:last-child td { border-bottom: none; }
+    .table-wrap tbody tr:hover td { background: #f8fafc; }
+    .table-wrap td.actions { white-space: nowrap; }
+    .table-wrap td input[type=checkbox], .table-wrap th input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: #1e40af; }
+    .table-wrap .empty-state { text-align: center; padding: 48px 24px; color: #94a3b8; }
+    .table-wrap .empty-state i { font-size: 36px; display: block; margin-bottom: 12px; }
+    .table-wrap .empty-state p { font-size: 14px; }
+
+    /* ─── Badges ─────────────────────────────────────────────────────────────── */
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; letter-spacing: .3px; white-space: nowrap; }
+    .badge-green, .badge-complete, .badge-passed, .badge-resolved, .badge-closed { background: #dcfce7; color: #166534; }
+    .badge-yellow, .badge-in-progress, .badge-in_progress { background: #fef9c3; color: #854d0e; }
+    .badge-red, .badge-failed, .badge-overdue, .badge-critical { background: #fee2e2; color: #991b1b; }
+    .badge-blue, .badge-active, .badge-scheduled { background: #dbeafe; color: #1e40af; }
+    .badge-gray, .badge-pending, .badge-open { background: #f1f5f9; color: #475569; }
+    .badge-orange, .badge-on-hold, .badge-on_hold { background: #ffedd5; color: #9a3412; }
+    .badge-purple, .badge-planning { background: #ede9fe; color: #5b21b6; }
+    .badge-teal, .badge-high { background: #ccfbf1; color: #115e59; }
+    .badge-pink, .badge-medium { background: #fce7f3; color: #831843; }
+    .badge-low { background: #f0fdf4; color: #14532d; }
+
+    /* ─── Progress Bar ──────────────────────────────────────────────────────── */
+    .progress-wrap { display: flex; align-items: center; gap: 8px; }
+    .progress-bar { flex: 1; min-width: 60px; height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: #1e40af; border-radius: 3px; transition: width .3s; }
+    .progress-pct { font-size: 11px; color: #64748b; white-space: nowrap; }
+
+    /* ─── Cards (project cards) ─────────────────────────────────────────────── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; margin-bottom: 24px; }
+    .stat-card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.07); display: flex; align-items: center; gap: 16px; }
+    .stat-card .stat-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+    .stat-card .stat-icon.blue { background: #dbeafe; color: #1e40af; }
+    .stat-card .stat-icon.green { background: #dcfce7; color: #16a34a; }
+    .stat-card .stat-icon.yellow { background: #fef9c3; color: #ca8a04; }
+    .stat-card .stat-icon.red { background: #fee2e2; color: #dc2626; }
+    .stat-card .stat-value { font-size: 26px; font-weight: 700; color: #0f172a; line-height: 1; }
+    .stat-card .stat-label { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+    /* ─── Modals ─────────────────────────────────────────────────────────────── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 500; align-items: center; justify-content: center; padding: 20px; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #fff; border-radius: 12px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+    .modal-header { display: flex; align-items: center; padding: 20px 24px 16px; border-bottom: 1px solid #e2e8f0; }
+    .modal-header h2 { font-size: 17px; font-weight: 700; color: #0f172a; flex: 1; }
+    .modal-header .close-btn { background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer; padding: 4px; border-radius: 4px; }
+    .modal-header .close-btn:hover { color: #475569; background: #f1f5f9; }
+    .modal-body { padding: 20px 24px; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid #e2e8f0; }
+
+    /* ─── Form Elements ─────────────────────────────────────────────────────── */
+    .form-group { margin-bottom: 16px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-group label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 5px; letter-spacing: .3px; }
+    .form-group label .required { color: #dc2626; margin-left: 2px; }
+    .form-group input[type=text], .form-group input[type=date], .form-group input[type=email], .form-group select, .form-group textarea { width: 100%; padding: 8px 11px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px; color: #334155; background: #fff; font-family: inherit; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,.15); }
+    .form-group textarea { resize: vertical; min-height: 72px; }
+    .form-group .field-error { color: #dc2626; font-size: 11px; margin-top: 3px; display: none; }
+    .form-group.has-error input, .form-group.has-error select, .form-group.has-error textarea { border-color: #dc2626; }
+    .form-group.has-error .field-error { display: block; }
+
+    /* ─── Confirm Dialog ────────────────────────────────────────────────────── */
+    #confirm-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 600; align-items: center; justify-content: center; }
+    #confirm-overlay.open { display: flex; }
+    #confirm-dialog { background: #fff; border-radius: 12px; padding: 28px; width: 360px; box-shadow: 0 20px 60px rgba(0,0,0,.3); text-align: center; }
+    #confirm-dialog .confirm-icon { font-size: 40px; color: #dc2626; margin-bottom: 12px; }
+    #confirm-dialog h3 { font-size: 17px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+    #confirm-dialog p { font-size: 13px; color: #64748b; margin-bottom: 20px; }
+    #confirm-dialog .confirm-btns { display: flex; justify-content: center; gap: 10px; }
+
+    /* ─── Toast ─────────────────────────────────────────────────────────────── */
+    #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 700; display: flex; flex-direction: column; gap: 8px; }
+    .toast { background: #1e293b; color: #e2e8f0; padding: 11px 18px; border-radius: 8px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.3); animation: slideIn .25s ease; max-width: 320px; }
+    .toast.success { border-left: 4px solid #22c55e; }
+    .toast.error { border-left: 4px solid #ef4444; }
+    .toast.info { border-left: 4px solid #3b82f6; }
+    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes slideOut { from { transform: translateX(0); opacity: 1; } to { transform: translateX(100%); opacity: 0; } }
+    .toast.removing { animation: slideOut .25s ease forwards; }
+
+    /* ─── Scrollbar ─────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* ─── Misc ──────────────────────────────────────────────────────────────── */
+    .text-muted { color: #94a3b8; }
+    .text-sm { font-size: 12px; }
+    .font-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
+    .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+  </style>
 </head>
 <body>
-    <div id="root"></div>
+<div id="app">
+
+  <!-- ── Top Nav ─────────────────────────────────────────────────────────── -->
+  <nav id="topnav">
+    <a class="brand" href="#" onclick="navigate('projects');return false;">
+      <i class="fa-solid fa-network-wired"></i> CxMatrix
+    </a>
+    <div class="nav-spacer"></div>
+    <div class="nav-user"><i class="fa-solid fa-circle-user"></i> Admin</div>
+  </nav>
+
+  <div id="body-row">
+    <!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+    <aside id="sidebar"></aside>
+
+    <!-- ── Main Content ─────────────────────────────────────────────────── -->
+    <main id="main-content"></main>
+  </div>
+</div>
+
+<!-- ══ MODALS ══════════════════════════════════════════════════════════════ -->
+
+<!-- Project Modal -->
+<div class="modal-overlay" id="project-modal-overlay">
+  <div class="modal" id="project-modal">
+    <div class="modal-header">
+      <h2 id="project-modal-title">New Project</h2>
+      <button class="close-btn" onclick="closeModal('project-modal-overlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Project Name <span class="required">*</span></label>
+          <input type="text" id="pm-name" placeholder="Enter project name" />
+          <div class="field-error">Project name is required</div>
+        </div>
+        <div class="form-group">
+          <label>Client Name</label>
+          <input type="text" id="pm-client" placeholder="Client / Owner" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Location</label>
+        <input type="text" id="pm-location" placeholder="City, State" />
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Status</label>
+          <select id="pm-status">
+            <option value="Planning">Planning</option>
+            <option value="Active">Active</option>
+            <option value="On Hold">On Hold</option>
+            <option value="Complete">Complete</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Progress (%)</label>
+          <input type="text" id="pm-progress" placeholder="0-100" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Start Date</label>
+          <input type="date" id="pm-start" />
+        </div>
+        <div class="form-group">
+          <label>End Date</label>
+          <input type="date" id="pm-end" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="pm-desc" placeholder="Project description..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('project-modal-overlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProject()"><i class="fa-solid fa-floppy-disk"></i> Save Project</button>
+    </div>
+  </div>
+</div>
+
+<!-- Asset Modal -->
+<div class="modal-overlay" id="asset-modal-overlay">
+  <div class="modal" id="asset-modal">
+    <div class="modal-header">
+      <h2 id="asset-modal-title">New Asset</h2>
+      <button class="close-btn" onclick="closeModal('asset-modal-overlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Asset Tag <span class="required">*</span></label>
+          <input type="text" id="am-tag" placeholder="e.g. AHU-01" />
+          <div class="field-error">Asset tag is required</div>
+        </div>
+        <div class="form-group">
+          <label>Description <span class="required">*</span></label>
+          <input type="text" id="am-desc" placeholder="Asset description" />
+          <div class="field-error">Description is required</div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Type</label>
+          <select id="am-type">
+            <option value="Mechanical">Mechanical</option>
+            <option value="Electrical">Electrical</option>
+            <option value="Plumbing">Plumbing</option>
+            <option value="HVAC">HVAC</option>
+            <option value="Controls">Controls</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="am-status">
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Complete">Complete</option>
+            <option value="Failed">Failed</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>System</label>
+          <input type="text" id="am-system" placeholder="e.g. HVAC-North" />
+        </div>
+        <div class="form-group">
+          <label>Area</label>
+          <input type="text" id="am-area" placeholder="e.g. Floor 2" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Priority</label>
+          <select id="am-priority">
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Assigned To</label>
+          <input type="text" id="am-assigned" placeholder="Technician name" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="am-notes" placeholder="Additional notes..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('asset-modal-overlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAsset()"><i class="fa-solid fa-floppy-disk"></i> Save Asset</button>
+    </div>
+  </div>
+</div>
+
+<!-- Issue Modal -->
+<div class="modal-overlay" id="issue-modal-overlay">
+  <div class="modal" id="issue-modal">
+    <div class="modal-header">
+      <h2 id="issue-modal-title">New Issue</h2>
+      <button class="close-btn" onclick="closeModal('issue-modal-overlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Title <span class="required">*</span></label>
+        <input type="text" id="im-title" placeholder="Issue title" />
+        <div class="field-error">Title is required</div>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <textarea id="im-desc" placeholder="Describe the issue..."></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Priority</label>
+          <select id="im-priority">
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="im-status">
+            <option value="Open">Open</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Resolved">Resolved</option>
+            <option value="Closed">Closed</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Assigned To</label>
+          <input type="text" id="im-assigned" placeholder="Name" />
+        </div>
+        <div class="form-group">
+          <label>Due Date</label>
+          <input type="date" id="im-due" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="im-notes" placeholder="Additional notes..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('issue-modal-overlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveIssue()"><i class="fa-solid fa-floppy-disk"></i> Save Issue</button>
+    </div>
+  </div>
+</div>
+
+<!-- Checklist Modal -->
+<div class="modal-overlay" id="checklist-modal-overlay">
+  <div class="modal" id="checklist-modal">
+    <div class="modal-header">
+      <h2 id="checklist-modal-title">New Checklist</h2>
+      <button class="close-btn" onclick="closeModal('checklist-modal-overlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Checklist Name <span class="required">*</span></label>
+        <input type="text" id="cm-name" placeholder="Checklist name" />
+        <div class="field-error">Checklist name is required</div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Type</label>
+          <select id="cm-type">
+            <option value="Pre-Functional">Pre-Functional</option>
+            <option value="Functional">Functional</option>
+            <option value="TAB">TAB</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="cm-status">
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Complete">Complete</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Asset</label>
+          <input type="text" id="cm-asset" placeholder="Associated asset tag" />
+        </div>
+        <div class="form-group">
+          <label>Total Items</label>
+          <input type="text" id="cm-items" placeholder="e.g. 20" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Completed Items</label>
+        <input type="text" id="cm-completed" placeholder="e.g. 12" />
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="cm-notes" placeholder="Additional notes..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('checklist-modal-overlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveChecklist()"><i class="fa-solid fa-floppy-disk"></i> Save Checklist</button>
+    </div>
+  </div>
+</div>
+
+<!-- Test Modal -->
+<div class="modal-overlay" id="test-modal-overlay">
+  <div class="modal" id="test-modal">
+    <div class="modal-header">
+      <h2 id="test-modal-title">New Test</h2>
+      <button class="close-btn" onclick="closeModal('test-modal-overlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Test Name <span class="required">*</span></label>
+          <input type="text" id="tm-name" placeholder="Test name" />
+          <div class="field-error">Test name is required</div>
+        </div>
+        <div class="form-group">
+          <label>Test Type</label>
+          <select id="tm-type">
+            <option value="Functional">Functional</option>
+            <option value="Performance">Performance</option>
+            <option value="Integration">Integration</option>
+            <option value="Acceptance">Acceptance</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Status</label>
+          <select id="tm-status">
+            <option value="Scheduled">Scheduled</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Passed">Passed</option>
+            <option value="Failed">Failed</option>
+            <option value="On Hold">On Hold</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Asset</label>
+          <input type="text" id="tm-asset" placeholder="Asset tag" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Scheduled Date</label>
+          <input type="date" id="tm-scheduled" />
+        </div>
+        <div class="form-group">
+          <label>Completed Date</label>
+          <input type="date" id="tm-completed" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Assigned To</label>
+        <input type="text" id="tm-assigned" placeholder="Technician name" />
+      </div>
+      <div class="form-group">
+        <label>Notes</label>
+        <textarea id="tm-notes" placeholder="Additional notes..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('test-modal-overlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveTest()"><i class="fa-solid fa-floppy-disk"></i> Save Test</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bulk Edit Modal -->
+<div class="modal-overlay" id="bulk-edit-modal-overlay">
+  <div class="modal" id="bulk-edit-modal">
+    <div class="modal-header">
+      <h2>Bulk Edit Assets</h2>
+      <button class="close-btn" onclick="closeModal('bulk-edit-modal-overlay')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="modal-body">
+      <p class="text-sm text-muted" style="margin-bottom:14px">Leave fields blank to keep existing values unchanged.</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Type</label>
+          <select id="bem-type">
+            <option value="">-- No change --</option>
+            <option value="Mechanical">Mechanical</option>
+            <option value="Electrical">Electrical</option>
+            <option value="Plumbing">Plumbing</option>
+            <option value="HVAC">HVAC</option>
+            <option value="Controls">Controls</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Status</label>
+          <select id="bem-status">
+            <option value="">-- No change --</option>
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Complete">Complete</option>
+            <option value="Failed">Failed</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>System</label>
+          <input type="text" id="bem-system" placeholder="Leave blank to keep" />
+        </div>
+        <div class="form-group">
+          <label>Area</label>
+          <input type="text" id="bem-area" placeholder="Leave blank to keep" />
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Priority</label>
+          <select id="bem-priority">
+            <option value="">-- No change --</option>
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Assigned To</label>
+          <input type="text" id="bem-assigned" placeholder="Leave blank to keep" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('bulk-edit-modal-overlay')">Cancel</button>
+      <button class="btn btn-primary" onclick="applyBulkEdit()"><i class="fa-solid fa-floppy-disk"></i> Apply Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Dialog -->
+<div id="confirm-overlay">
+  <div id="confirm-dialog">
+    <div class="confirm-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+    <h3 id="confirm-title">Confirm Delete</h3>
+    <p id="confirm-message">Are you sure you want to delete this item? This action cannot be undone.</p>
+    <div class="confirm-btns">
+      <button class="btn btn-secondary" onclick="closeConfirm()">Cancel</button>
+      <button class="btn btn-danger" id="confirm-ok-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════════════
+   CxMatrix — Commissioning Management App
+   All data in localStorage. Vanilla JS, no frameworks.
+═══════════════════════════════════════════════════════════════════════════ */
+
+// ── State ────────────────────────────────────────────────────────────────
+let currentView = 'projects';   // 'projects' | 'assets' | 'design-issues' | 'construction-issues' | 'checklists' | 'tests'
+let currentProject = null;      // current project object
+let selectedAssets = new Set(); // set of asset IDs currently checked
+
+let editingProjectId = null;
+let editingAssetId   = null;
+let editingIssueId   = null;
+let editingIssueType = null;    // 'design' | 'construction'
+let editingChecklistId = null;
+let editingTestId    = null;
+
+// Filters
+let projectFilter  = { search: '', status: 'All' };
+let assetFilter    = { search: '', type: 'All', status: 'All' };
+let issueFilter    = { search: '', status: 'All', priority: 'All' };
+let checklistFilter = { search: '', status: 'All' };
+let testFilter     = { search: '', type: 'All', status: 'All' };
+
+// ── Storage Helpers ──────────────────────────────────────────────────────
+const KEYS = {
+  projects: 'cxmatrix_projects',
+  assets:   'cxmatrix_assets',
+  design:   'cxmatrix_design_issues',
+  construction: 'cxmatrix_construction_issues',
+  checklists: 'cxmatrix_checklists',
+  tests:    'cxmatrix_tests'
+};
+
+function load(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || []; }
+  catch { return []; }
+}
+function save(key, data) {
+  localStorage.setItem(key, JSON.stringify(data));
+}
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+// ── Sample Data Seed ─────────────────────────────────────────────────────
+function seedData() {
+  if (load(KEYS.projects).length > 0) return;
+
+  const p1 = uid(), p2 = uid(), p3 = uid();
+
+  save(KEYS.projects, [
+    { id: p1, name: 'Downtown Office Tower', client: 'Apex Real Estate', location: 'Chicago, IL', status: 'Active', progress: 42, startDate: '2024-01-15', endDate: '2024-12-31', description: 'Commissioning of 32-story Class A office building including HVAC, electrical, and building controls.' },
+    { id: p2, name: 'University Science Center', client: 'State University', location: 'Austin, TX', status: 'Planning', progress: 8, startDate: '2024-03-01', endDate: '2025-06-30', description: 'New research facility with specialized laboratory HVAC and life-safety systems.' },
+    { id: p3, name: 'Regional Medical Center', client: 'HealthCorp Inc.', location: 'Atlanta, GA', status: 'On Hold', progress: 65, startDate: '2023-06-01', endDate: '2024-08-31', description: 'Hospital expansion wing commissioning including critical care mechanical and electrical systems.' }
+  ]);
+
+  const a1 = uid(), a2 = uid(), a3 = uid(), a4 = uid(), a5 = uid();
+  save(KEYS.assets, [
+    { id: a1, projectId: p1, tag: 'AHU-01', description: 'Air Handling Unit - Floor 1-8', type: 'HVAC', system: 'HVAC-Main', area: 'Mechanical Room B1', status: 'Complete', priority: 'High', assignedTo: 'John Smith', notes: 'Installed and tested.' },
+    { id: a2, projectId: p1, tag: 'AHU-02', description: 'Air Handling Unit - Floor 9-16', type: 'HVAC', system: 'HVAC-Main', area: 'Mechanical Room B1', status: 'In Progress', priority: 'High', assignedTo: 'John Smith', notes: 'Pre-functional checklist in progress.' },
+    { id: a3, projectId: p1, tag: 'CHW-P01', description: 'Chilled Water Pump Primary', type: 'Mechanical', system: 'Chilled Water', area: 'Central Plant', status: 'Pending', priority: 'Medium', assignedTo: 'Maria Garcia', notes: '' },
+    { id: a4, projectId: p1, tag: 'ELP-MDP', description: 'Main Distribution Panel', type: 'Electrical', system: 'Electrical', area: 'Electrical Room 1', status: 'Complete', priority: 'Critical', assignedTo: 'David Lee', notes: 'All circuits verified.' },
+    { id: a5, projectId: p1, tag: 'BAS-CTL1', description: 'BAS Controller - Zone A', type: 'Controls', system: 'Building Automation', area: 'Server Room', status: 'In Progress', priority: 'Medium', assignedTo: 'Sarah Nguyen', notes: 'Programming 70% complete.' }
+  ]);
+
+  const d1 = uid(), d2 = uid(), d3 = uid();
+  save(KEYS.design, [
+    { id: d1, projectId: p1, issueNum: 'DI-001', title: 'Duct sizing discrepancy on Floor 12', description: 'Supply duct sizing on drawing M-301 does not match energy model inputs.', priority: 'High', status: 'Open', assignedTo: 'John Smith', dueDate: '2024-02-15', notes: 'Needs EOR clarification.' },
+    { id: d2, projectId: p1, issueNum: 'DI-002', title: 'Missing balancing damper callouts', description: 'VAV box schedule missing balancing damper specifications for zones 4-8.', priority: 'Medium', status: 'In Progress', assignedTo: 'Maria Garcia', dueDate: '2024-02-28', notes: '' },
+    { id: d3, projectId: p1, issueNum: 'DI-003', title: 'Controls sequence conflict - AHU-01', description: 'Sequence of operations conflicts with specified occupancy sensor locations.', priority: 'Critical', status: 'Resolved', assignedTo: 'Sarah Nguyen', dueDate: '2024-01-31', notes: 'Resolved via RFI-042.' }
+  ]);
+
+  const c1 = uid(), c2 = uid();
+  save(KEYS.construction, [
+    { id: c1, projectId: p1, issueNum: 'CI-001', title: 'AHU-02 belt slipping at startup', description: 'Drive belt on AHU-02 supply fan slipping during initial start, causing low airflow alarms.', priority: 'High', status: 'In Progress', assignedTo: 'John Smith', dueDate: '2024-03-05', notes: 'New belt ordered, ETA 3 days.' },
+    { id: c2, projectId: p1, issueNum: 'CI-002', title: 'Chilled water piping insulation gap', description: 'Missing insulation on CHW supply pipe section between P-100 and P-102.', priority: 'Low', status: 'Open', assignedTo: 'Maria Garcia', dueDate: '2024-03-10', notes: '' }
+  ]);
+
+  const cl1 = uid(), cl2 = uid();
+  save(KEYS.checklists, [
+    { id: cl1, projectId: p1, name: 'AHU-01 Pre-Functional Checklist', type: 'Pre-Functional', asset: 'AHU-01', status: 'Complete', items: 24, completed: 24, notes: 'Fully complete.' },
+    { id: cl2, projectId: p1, name: 'AHU-02 Pre-Functional Checklist', type: 'Pre-Functional', asset: 'AHU-02', status: 'In Progress', items: 24, completed: 17, notes: 'Items 18-24 pending electrical confirmation.' }
+  ]);
+
+  const t1 = uid(), t2 = uid(), t3 = uid();
+  save(KEYS.tests, [
+    { id: t1, projectId: p1, testNum: 'T-001', name: 'AHU-01 Functional Performance Test', type: 'Functional', asset: 'AHU-01', status: 'Passed', scheduledDate: '2024-02-10', completedDate: '2024-02-10', assignedTo: 'John Smith', notes: 'All sequences verified.' },
+    { id: t2, projectId: p1, testNum: 'T-002', name: 'AHU-02 Functional Performance Test', type: 'Functional', asset: 'AHU-02', status: 'Scheduled', scheduledDate: '2024-03-15', completedDate: '', assignedTo: 'John Smith', notes: '' },
+    { id: t3, projectId: p1, testNum: 'T-003', name: 'Chilled Water System Performance Test', type: 'Performance', asset: 'CHW-P01', status: 'Scheduled', scheduledDate: '2024-04-01', completedDate: '', assignedTo: 'Maria Garcia', notes: 'Requires full loop charging first.' }
+  ]);
+}
+
+// ── Navigation ───────────────────────────────────────────────────────────
+function navigate(view, projectId) {
+  currentView = view;
+  selectedAssets.clear();
+  if (projectId) {
+    const projects = load(KEYS.projects);
+    currentProject = projects.find(p => p.id === projectId) || currentProject;
+  }
+  renderSidebar();
+  renderMain();
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────────────
+function renderSidebar() {
+  const el = document.getElementById('sidebar');
+  if (currentView === 'projects') {
+    el.innerHTML = `
+      <div class="sidebar-section-label">Navigation</div>
+      <a class="active" onclick="navigate('projects')"><i class="fa-solid fa-folder-open"></i> Projects</a>`;
+    return;
+  }
+  // Project detail views
+  const views = [
+    { id: 'assets',               icon: 'fa-solid fa-boxes-stacked',      label: 'Assets' },
+    { id: 'design-issues',        icon: 'fa-solid fa-drafting-compass',    label: 'Design Issues' },
+    { id: 'construction-issues',  icon: 'fa-solid fa-hard-hat',           label: 'Construction Issues' },
+    { id: 'checklists',           icon: 'fa-solid fa-list-check',         label: 'Checklists' },
+    { id: 'tests',                icon: 'fa-solid fa-vial-circle-check',  label: 'Tests' }
+  ];
+  const links = views.map(v =>
+    `<a class="${currentView === v.id ? 'active' : ''}" onclick="navigate('${v.id}')">
+      <i class="${v.icon}"></i> ${v.label}
+    </a>`
+  ).join('');
+  el.innerHTML = `
+    <a class="sidebar-back" onclick="navigate('projects')"><i class="fa-solid fa-arrow-left"></i> Back to Projects</a>
+    <hr class="sidebar-divider" />
+    <div class="sidebar-section-label">${escHtml(currentProject?.name || '')}</div>
+    ${links}`;
+}
+
+// ── Main Render Router ───────────────────────────────────────────────────
+function renderMain() {
+  switch (currentView) {
+    case 'projects':            renderProjects(); break;
+    case 'assets':              renderAssets(); break;
+    case 'design-issues':       renderIssues('design'); break;
+    case 'construction-issues': renderIssues('construction'); break;
+    case 'checklists':          renderChecklists(); break;
+    case 'tests':               renderTests(); break;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// PROJECTS
+// ════════════════════════════════════════════════════════════════════════
+function renderProjects() {
+  let projects = load(KEYS.projects);
+  const assets  = load(KEYS.assets);
+  const design  = load(KEYS.design);
+  const constr  = load(KEYS.construction);
+
+  if (projectFilter.search) {
+    const q = projectFilter.search.toLowerCase();
+    projects = projects.filter(p => p.name.toLowerCase().includes(q) || (p.client||'').toLowerCase().includes(q) || (p.location||'').toLowerCase().includes(q));
+  }
+  if (projectFilter.status !== 'All') {
+    projects = projects.filter(p => p.status === projectFilter.status);
+  }
+
+  const rows = projects.map(p => {
+    const pAssets = assets.filter(a => a.projectId === p.id).length;
+    const pIssues = design.filter(i => i.projectId === p.id && i.status !== 'Resolved' && i.status !== 'Closed').length
+                  + constr.filter(i => i.projectId === p.id && i.status !== 'Resolved' && i.status !== 'Closed').length;
+    const pct = parseInt(p.progress) || 0;
+    return `<tr>
+      <td><span class="font-mono text-sm" style="color:#1e40af;font-weight:600">${escHtml(p.name)}</span>
+          <div class="text-muted text-sm">${escHtml(p.client||'')}${p.location ? ' · ' + escHtml(p.location) : ''}</div></td>
+      <td>${statusBadge(p.status)}</td>
+      <td class="text-sm">${fmtDate(p.startDate)}</td>
+      <td class="text-sm">${fmtDate(p.endDate)}</td>
+      <td class="text-sm">${pAssets}</td>
+      <td class="text-sm">${pIssues > 0 ? `<span style="color:#dc2626;font-weight:600">${pIssues}</span>` : pIssues}</td>
+      <td style="min-width:120px">
+        <div class="progress-wrap">
+          <div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+          <span class="progress-pct">${pct}%</span>
+        </div>
+      </td>
+      <td class="actions">
+        <button class="btn btn-sm btn-primary" onclick="navigate('assets','${p.id}')"><i class="fa-solid fa-eye"></i> View</button>
+        <button class="btn btn-sm btn-ghost" onclick="openEditProject('${p.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-sm btn-ghost" style="color:#dc2626" onclick="confirmDelete('project','${p.id}')"><i class="fa-solid fa-trash"></i></button>
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="8"><div class="empty-state"><i class="fa-solid fa-folder-open"></i><p>No projects found.</p></div></td></tr>`;
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="page-header">
+      <h1><i class="fa-solid fa-folder-open" style="color:#3b82f6;margin-right:8px"></i>Projects</h1>
+      <div class="header-actions">
+        <div class="toolbar" style="margin:0">
+          <div class="search-wrap"><i class="fa-solid fa-magnifying-glass"></i>
+            <input type="search" placeholder="Search projects…" value="${escHtml(projectFilter.search)}" oninput="projectFilter.search=this.value;renderProjects()" />
+          </div>
+          <select onchange="projectFilter.status=this.value;renderProjects()">
+            ${['All','Active','On Hold','Complete','Planning'].map(s=>`<option${projectFilter.status===s?' selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="openNewProject()"><i class="fa-solid fa-plus"></i> New Project</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Project Name</th><th>Status</th><th>Start Date</th><th>End Date</th>
+          <th>Assets</th><th>Open Issues</th><th style="min-width:130px">Progress</th><th>Actions</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function openNewProject() {
+  editingProjectId = null;
+  document.getElementById('project-modal-title').textContent = 'New Project';
+  ['pm-name','pm-client','pm-location','pm-desc','pm-progress'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('pm-status').value = 'Planning';
+  document.getElementById('pm-start').value = '';
+  document.getElementById('pm-end').value = '';
+  clearFormErrors('project-modal');
+  openModal('project-modal-overlay');
+}
+
+function openEditProject(id) {
+  const p = load(KEYS.projects).find(p => p.id === id);
+  if (!p) return;
+  editingProjectId = id;
+  document.getElementById('project-modal-title').textContent = 'Edit Project';
+  document.getElementById('pm-name').value     = p.name || '';
+  document.getElementById('pm-client').value   = p.client || '';
+  document.getElementById('pm-location').value = p.location || '';
+  document.getElementById('pm-status').value   = p.status || 'Planning';
+  document.getElementById('pm-progress').value = p.progress || '';
+  document.getElementById('pm-start').value    = p.startDate || '';
+  document.getElementById('pm-end').value      = p.endDate || '';
+  document.getElementById('pm-desc').value     = p.description || '';
+  clearFormErrors('project-modal');
+  openModal('project-modal-overlay');
+}
+
+function saveProject() {
+  const nameEl = document.getElementById('pm-name');
+  if (!nameEl.value.trim()) { showError(nameEl); return; }
+  clearFormErrors('project-modal');
+  const projects = load(KEYS.projects);
+  const obj = {
+    id:          editingProjectId || uid(),
+    name:        nameEl.value.trim(),
+    client:      document.getElementById('pm-client').value.trim(),
+    location:    document.getElementById('pm-location').value.trim(),
+    status:      document.getElementById('pm-status').value,
+    progress:    parseInt(document.getElementById('pm-progress').value) || 0,
+    startDate:   document.getElementById('pm-start').value,
+    endDate:     document.getElementById('pm-end').value,
+    description: document.getElementById('pm-desc').value.trim()
+  };
+  if (editingProjectId) {
+    const idx = projects.findIndex(p => p.id === editingProjectId);
+    if (idx > -1) projects[idx] = obj;
+    toast('Project updated.', 'success');
+  } else {
+    projects.push(obj);
+    toast('Project created.', 'success');
+  }
+  save(KEYS.projects, projects);
+  closeModal('project-modal-overlay');
+  renderProjects();
+}
+
+function deleteProject(id) {
+  let projects = load(KEYS.projects);
+  projects = projects.filter(p => p.id !== id);
+  save(KEYS.projects, projects);
+  // cascade delete
+  [KEYS.assets, KEYS.design, KEYS.construction, KEYS.checklists, KEYS.tests].forEach(key => {
+    save(key, load(key).filter(item => item.projectId !== id));
+  });
+  if (currentProject && currentProject.id === id) { currentProject = null; currentView = 'projects'; }
+  toast('Project deleted.', 'success');
+  renderProjects();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ASSETS
+// ════════════════════════════════════════════════════════════════════════
+function renderAssets() {
+  if (!currentProject) { navigate('projects'); return; }
+  let assets = load(KEYS.assets).filter(a => a.projectId === currentProject.id);
+  if (assetFilter.search) {
+    const q = assetFilter.search.toLowerCase();
+    assets = assets.filter(a => a.tag.toLowerCase().includes(q) || a.description.toLowerCase().includes(q) || (a.system||'').toLowerCase().includes(q) || (a.area||'').toLowerCase().includes(q));
+  }
+  if (assetFilter.type !== 'All') assets = assets.filter(a => a.type === assetFilter.type);
+  if (assetFilter.status !== 'All') assets = assets.filter(a => a.status === assetFilter.status);
+
+  const allIds = assets.map(a => a.id);
+  const allChecked = allIds.length > 0 && allIds.every(id => selectedAssets.has(id));
+
+  const rows = assets.map(a => `<tr>
+    <td><input type="checkbox" ${selectedAssets.has(a.id)?'checked':''} onchange="toggleAssetSelect('${a.id}',this.checked)" /></td>
+    <td><span class="font-mono" style="color:#1e40af;font-weight:600">${escHtml(a.tag)}</span></td>
+    <td class="truncate">${escHtml(a.description)}</td>
+    <td>${typeBadge(a.type)}</td>
+    <td class="text-sm text-muted">${escHtml(a.system||'—')}</td>
+    <td class="text-sm text-muted">${escHtml(a.area||'—')}</td>
+    <td>${statusBadge(a.status)}</td>
+    <td>${priorityBadge(a.priority)}</td>
+    <td class="text-sm">${escHtml(a.assignedTo||'—')}</td>
+    <td class="actions">
+      <button class="btn btn-sm btn-ghost" onclick="openEditAsset('${a.id}')"><i class="fa-solid fa-pen"></i></button>
+      <button class="btn btn-sm btn-ghost" style="color:#dc2626" onclick="confirmDelete('asset','${a.id}')"><i class="fa-solid fa-trash"></i></button>
+    </td>
+  </tr>`).join('') || `<tr><td colspan="10"><div class="empty-state"><i class="fa-solid fa-boxes-stacked"></i><p>No assets found. Click "+ New Asset" to add one.</p></div></td></tr>`;
+
+  const bulkVisible = selectedAssets.size > 0 ? 'visible' : '';
+  document.getElementById('main-content').innerHTML = `
+    <div class="page-header">
+      <h1><i class="fa-solid fa-boxes-stacked" style="color:#3b82f6;margin-right:8px"></i>${escHtml(currentProject.name)} — Assets</h1>
+      <div class="header-actions">
+        <button class="btn btn-ghost" onclick="importAssetsCSV()"><i class="fa-solid fa-file-import"></i> Import</button>
+        <button class="btn btn-primary" onclick="openNewAsset()"><i class="fa-solid fa-plus"></i> New Asset</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <div class="search-wrap"><i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" placeholder="Search assets…" value="${escHtml(assetFilter.search)}" oninput="assetFilter.search=this.value;renderAssets()" />
+      </div>
+      <select onchange="assetFilter.type=this.value;renderAssets()">
+        ${['All','Mechanical','Electrical','Plumbing','HVAC','Controls','Other'].map(t=>`<option${assetFilter.type===t?' selected':''}>${t}</option>`).join('')}
+      </select>
+      <select onchange="assetFilter.status=this.value;renderAssets()">
+        ${['All','Pending','In Progress','Complete','Failed'].map(s=>`<option${assetFilter.status===s?' selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="bulk-toolbar ${bulkVisible}" id="bulk-toolbar">
+      <span class="bulk-count"><i class="fa-solid fa-square-check"></i> ${selectedAssets.size} item${selectedAssets.size!==1?'s':''} selected</span>
+      <button class="btn btn-sm btn-ghost" onclick="openBulkEdit()"><i class="fa-solid fa-pen-to-square"></i> Edit</button>
+      <button class="btn btn-sm btn-ghost" onclick="bulkDelete()"><i class="fa-solid fa-trash"></i> Delete</button>
+      <button class="btn btn-sm btn-ghost" onclick="exportCSV()"><i class="fa-solid fa-file-csv"></i> Export CSV</button>
+      <button class="btn btn-sm btn-ghost" onclick="bulkAssignSystem()"><i class="fa-solid fa-sitemap"></i> Systems</button>
+      <button class="btn btn-sm btn-ghost" onclick="bulkAssignArea()"><i class="fa-solid fa-map-location-dot"></i> Areas</button>
+      <button class="btn btn-sm btn-ghost" onclick="bulkAttributes()"><i class="fa-solid fa-sliders"></i> Attributes</button>
+      <button class="btn btn-sm btn-ghost" onclick="bulkExportPDF()"><i class="fa-solid fa-file-pdf"></i> PDF</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th><input type="checkbox" ${allChecked?'checked':''} onchange="toggleAllAssets(this.checked)" /></th>
+          <th>Asset Tag</th><th>Description</th><th>Type</th>
+          <th>System</th><th>Area</th><th>Status</th><th>Priority</th>
+          <th>Assigned To</th><th>Actions</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function toggleAssetSelect(id, checked) {
+  if (checked) selectedAssets.add(id); else selectedAssets.delete(id);
+  refreshBulkToolbar();
+}
+
+function toggleAllAssets(checked) {
+  const assets = load(KEYS.assets).filter(a => a.projectId === currentProject.id);
+  assets.forEach(a => { if (checked) selectedAssets.add(a.id); else selectedAssets.delete(a.id); });
+  renderAssets();
+}
+
+function refreshBulkToolbar() {
+  const tb = document.getElementById('bulk-toolbar');
+  if (!tb) return;
+  if (selectedAssets.size > 0) {
+    tb.classList.add('visible');
+    tb.querySelector('.bulk-count').innerHTML = `<i class="fa-solid fa-square-check"></i> ${selectedAssets.size} item${selectedAssets.size!==1?'s':''} selected`;
+  } else {
+    tb.classList.remove('visible');
+  }
+}
+
+function openNewAsset() {
+  editingAssetId = null;
+  document.getElementById('asset-modal-title').textContent = 'New Asset';
+  ['am-tag','am-desc','am-system','am-area','am-assigned','am-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('am-type').value = 'Mechanical';
+  document.getElementById('am-status').value = 'Pending';
+  document.getElementById('am-priority').value = 'Medium';
+  clearFormErrors('asset-modal');
+  openModal('asset-modal-overlay');
+}
+
+function openEditAsset(id) {
+  const a = load(KEYS.assets).find(a => a.id === id);
+  if (!a) return;
+  editingAssetId = id;
+  document.getElementById('asset-modal-title').textContent = 'Edit Asset';
+  document.getElementById('am-tag').value      = a.tag || '';
+  document.getElementById('am-desc').value     = a.description || '';
+  document.getElementById('am-type').value     = a.type || 'Mechanical';
+  document.getElementById('am-system').value   = a.system || '';
+  document.getElementById('am-area').value     = a.area || '';
+  document.getElementById('am-status').value   = a.status || 'Pending';
+  document.getElementById('am-priority').value = a.priority || 'Medium';
+  document.getElementById('am-assigned').value = a.assignedTo || '';
+  document.getElementById('am-notes').value    = a.notes || '';
+  clearFormErrors('asset-modal');
+  openModal('asset-modal-overlay');
+}
+
+function saveAsset() {
+  const tagEl  = document.getElementById('am-tag');
+  const descEl = document.getElementById('am-desc');
+  let hasErr = false;
+  if (!tagEl.value.trim())  { showError(tagEl);  hasErr = true; }
+  if (!descEl.value.trim()) { showError(descEl); hasErr = true; }
+  if (hasErr) return;
+  clearFormErrors('asset-modal');
+  const assets = load(KEYS.assets);
+  const obj = {
+    id:          editingAssetId || uid(),
+    projectId:   currentProject.id,
+    tag:         tagEl.value.trim(),
+    description: descEl.value.trim(),
+    type:        document.getElementById('am-type').value,
+    system:      document.getElementById('am-system').value.trim(),
+    area:        document.getElementById('am-area').value.trim(),
+    status:      document.getElementById('am-status').value,
+    priority:    document.getElementById('am-priority').value,
+    assignedTo:  document.getElementById('am-assigned').value.trim(),
+    notes:       document.getElementById('am-notes').value.trim()
+  };
+  if (editingAssetId) {
+    const idx = assets.findIndex(a => a.id === editingAssetId);
+    if (idx > -1) assets[idx] = obj;
+    toast('Asset updated.', 'success');
+  } else {
+    assets.push(obj);
+    toast('Asset added.', 'success');
+  }
+  save(KEYS.assets, assets);
+  closeModal('asset-modal-overlay');
+  renderAssets();
+}
+
+function deleteAsset(id) {
+  save(KEYS.assets, load(KEYS.assets).filter(a => a.id !== id));
+  selectedAssets.delete(id);
+  toast('Asset deleted.', 'success');
+  renderAssets();
+}
+
+function openBulkEdit() {
+  ['bem-type','bem-status','bem-priority'].forEach(id => document.getElementById(id).value = '');
+  ['bem-system','bem-area','bem-assigned'].forEach(id => document.getElementById(id).value = '');
+  openModal('bulk-edit-modal-overlay');
+}
+
+function applyBulkEdit() {
+  const updates = {
+    type:       document.getElementById('bem-type').value,
+    status:     document.getElementById('bem-status').value,
+    system:     document.getElementById('bem-system').value.trim(),
+    area:       document.getElementById('bem-area').value.trim(),
+    priority:   document.getElementById('bem-priority').value,
+    assignedTo: document.getElementById('bem-assigned').value.trim()
+  };
+  const assets = load(KEYS.assets).map(a => {
+    if (!selectedAssets.has(a.id)) return a;
+    const updated = { ...a };
+    if (updates.type)       updated.type = updates.type;
+    if (updates.status)     updated.status = updates.status;
+    if (updates.system)     updated.system = updates.system;
+    if (updates.area)       updated.area = updates.area;
+    if (updates.priority)   updated.priority = updates.priority;
+    if (updates.assignedTo) updated.assignedTo = updates.assignedTo;
+    return updated;
+  });
+  save(KEYS.assets, assets);
+  closeModal('bulk-edit-modal-overlay');
+  toast(`${selectedAssets.size} asset(s) updated.`, 'success');
+  selectedAssets.clear();
+  renderAssets();
+}
+
+function bulkDelete() {
+  const count = selectedAssets.size;
+  confirmAction(`Delete ${count} asset(s)?`, `This will permanently delete ${count} selected asset(s).`, () => {
+    save(KEYS.assets, load(KEYS.assets).filter(a => !selectedAssets.has(a.id)));
+    selectedAssets.clear();
+    toast(`${count} asset(s) deleted.`, 'success');
+    renderAssets();
+  });
+}
+
+function exportCSV() {
+  const assets = load(KEYS.assets).filter(a => selectedAssets.has(a.id));
+  const header = ['Asset Tag','Description','Type','System','Area','Status','Priority','Assigned To','Notes'];
+  const rows = assets.map(a => [a.tag,a.description,a.type,a.system,a.area,a.status,a.priority,a.assignedTo,a.notes].map(csvCell).join(','));
+  const csv = [header.join(','), ...rows].join('\n');
+  downloadFile(csv, 'assets-export.csv', 'text/csv');
+  toast('CSV exported.', 'info');
+}
+
+function bulkAssignSystem() {
+  const sys = prompt('Enter system name to assign to selected assets:');
+  if (sys === null) return;
+  const assets = load(KEYS.assets).map(a => selectedAssets.has(a.id) ? {...a, system: sys.trim()} : a);
+  save(KEYS.assets, assets);
+  toast('System assigned.', 'success');
+  renderAssets();
+}
+
+function bulkAssignArea() {
+  const area = prompt('Enter area to assign to selected assets:');
+  if (area === null) return;
+  const assets = load(KEYS.assets).map(a => selectedAssets.has(a.id) ? {...a, area: area.trim()} : a);
+  save(KEYS.assets, assets);
+  toast('Area assigned.', 'success');
+  renderAssets();
+}
+
+function bulkAttributes() { openBulkEdit(); }
+
+function bulkExportPDF() {
+  toast('PDF export is not available in this environment.', 'info');
+}
+
+function importAssetsCSV() {
+  toast('CSV import: use the bulk edit or add assets manually.', 'info');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// ISSUES (Design & Construction)
+// ════════════════════════════════════════════════════════════════════════
+function renderIssues(type) {
+  if (!currentProject) { navigate('projects'); return; }
+  const key = type === 'design' ? KEYS.design : KEYS.construction;
+  let issues = load(key).filter(i => i.projectId === currentProject.id);
+
+  if (issueFilter.search) {
+    const q = issueFilter.search.toLowerCase();
+    issues = issues.filter(i => i.title.toLowerCase().includes(q) || (i.description||'').toLowerCase().includes(q));
+  }
+  if (issueFilter.status !== 'All') issues = issues.filter(i => i.status === issueFilter.status);
+  if (issueFilter.priority !== 'All') issues = issues.filter(i => i.priority === issueFilter.priority);
+
+  const label = type === 'design' ? 'Design Issues' : 'Construction Issues';
+  const icon  = type === 'design' ? 'fa-solid fa-drafting-compass' : 'fa-solid fa-hard-hat';
+  const prefix = type === 'design' ? 'DI' : 'CI';
+
+  const rows = issues.map(i => `<tr>
+    <td class="font-mono text-sm" style="color:#1e40af;font-weight:600">${escHtml(i.issueNum||'—')}</td>
+    <td style="max-width:200px"><span class="truncate" title="${escHtml(i.title)}">${escHtml(i.title)}</span></td>
+    <td class="text-muted text-sm" style="max-width:220px"><span class="truncate" title="${escHtml(i.description||'')}">${escHtml(i.description||'—')}</span></td>
+    <td>${priorityBadge(i.priority)}</td>
+    <td>${statusBadge(i.status)}</td>
+    <td class="text-sm">${escHtml(i.assignedTo||'—')}</td>
+    <td class="text-sm">${fmtDate(i.dueDate)}</td>
+    <td class="actions">
+      <button class="btn btn-sm btn-ghost" onclick="openEditIssue('${type}','${i.id}')"><i class="fa-solid fa-pen"></i></button>
+      <button class="btn btn-sm btn-ghost" style="color:#dc2626" onclick="confirmDelete('issue-${type}','${i.id}')"><i class="fa-solid fa-trash"></i></button>
+    </td>
+  </tr>`).join('') || `<tr><td colspan="8"><div class="empty-state"><i class="${icon}"></i><p>No ${label.toLowerCase()} found.</p></div></td></tr>`;
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="page-header">
+      <h1><i class="${icon}" style="color:#3b82f6;margin-right:8px"></i>${label}</h1>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="openNewIssue('${type}')"><i class="fa-solid fa-plus"></i> New Issue</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <div class="search-wrap"><i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" placeholder="Search issues…" value="${escHtml(issueFilter.search)}" oninput="issueFilter.search=this.value;renderIssues('${type}')" />
+      </div>
+      <select onchange="issueFilter.status=this.value;renderIssues('${type}')">
+        ${['All','Open','In Progress','Resolved','Closed'].map(s=>`<option${issueFilter.status===s?' selected':''}>${s}</option>`).join('')}
+      </select>
+      <select onchange="issueFilter.priority=this.value;renderIssues('${type}')">
+        ${['All','Low','Medium','High','Critical'].map(s=>`<option${issueFilter.priority===s?' selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Issue #</th><th>Title</th><th>Description</th>
+          <th>Priority</th><th>Status</th><th>Assigned To</th><th>Due Date</th><th>Actions</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function nextIssueNum(type) {
+  const key = type === 'design' ? KEYS.design : KEYS.construction;
+  const prefix = type === 'design' ? 'DI' : 'CI';
+  const issues = load(key).filter(i => i.projectId === currentProject.id);
+  const nums = issues.map(i => parseInt((i.issueNum||'').replace(/\D/g,''))||0);
+  return `${prefix}-${String((Math.max(0, ...nums) + 1)).padStart(3,'0')}`;
+}
+
+function openNewIssue(type) {
+  editingIssueId   = null;
+  editingIssueType = type;
+  const label = type === 'design' ? 'Design Issue' : 'Construction Issue';
+  document.getElementById('issue-modal-title').textContent = `New ${label}`;
+  ['im-title','im-desc','im-assigned','im-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('im-priority').value = 'Medium';
+  document.getElementById('im-status').value   = 'Open';
+  document.getElementById('im-due').value = '';
+  clearFormErrors('issue-modal');
+  openModal('issue-modal-overlay');
+}
+
+function openEditIssue(type, id) {
+  const key = type === 'design' ? KEYS.design : KEYS.construction;
+  const i = load(key).find(i => i.id === id);
+  if (!i) return;
+  editingIssueId   = id;
+  editingIssueType = type;
+  const label = type === 'design' ? 'Design Issue' : 'Construction Issue';
+  document.getElementById('issue-modal-title').textContent = `Edit ${label}`;
+  document.getElementById('im-title').value    = i.title || '';
+  document.getElementById('im-desc').value     = i.description || '';
+  document.getElementById('im-priority').value = i.priority || 'Medium';
+  document.getElementById('im-status').value   = i.status || 'Open';
+  document.getElementById('im-assigned').value = i.assignedTo || '';
+  document.getElementById('im-due').value      = i.dueDate || '';
+  document.getElementById('im-notes').value    = i.notes || '';
+  clearFormErrors('issue-modal');
+  openModal('issue-modal-overlay');
+}
+
+function saveIssue() {
+  const titleEl = document.getElementById('im-title');
+  if (!titleEl.value.trim()) { showError(titleEl); return; }
+  clearFormErrors('issue-modal');
+  const type = editingIssueType;
+  const key = type === 'design' ? KEYS.design : KEYS.construction;
+  const issues = load(key);
+  const obj = {
+    id:          editingIssueId || uid(),
+    projectId:   currentProject.id,
+    issueNum:    editingIssueId ? (issues.find(i=>i.id===editingIssueId)||{}).issueNum : nextIssueNum(type),
+    title:       titleEl.value.trim(),
+    description: document.getElementById('im-desc').value.trim(),
+    priority:    document.getElementById('im-priority').value,
+    status:      document.getElementById('im-status').value,
+    assignedTo:  document.getElementById('im-assigned').value.trim(),
+    dueDate:     document.getElementById('im-due').value,
+    notes:       document.getElementById('im-notes').value.trim()
+  };
+  if (editingIssueId) {
+    const idx = issues.findIndex(i => i.id === editingIssueId);
+    if (idx > -1) issues[idx] = obj;
+    toast('Issue updated.', 'success');
+  } else {
+    issues.push(obj);
+    toast('Issue created.', 'success');
+  }
+  save(key, issues);
+  closeModal('issue-modal-overlay');
+  renderIssues(type);
+}
+
+function deleteIssue(type, id) {
+  const key = type === 'design' ? KEYS.design : KEYS.construction;
+  save(key, load(key).filter(i => i.id !== id));
+  toast('Issue deleted.', 'success');
+  renderIssues(type);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// CHECKLISTS
+// ════════════════════════════════════════════════════════════════════════
+function renderChecklists() {
+  if (!currentProject) { navigate('projects'); return; }
+  let lists = load(KEYS.checklists).filter(c => c.projectId === currentProject.id);
+  if (checklistFilter.search) {
+    const q = checklistFilter.search.toLowerCase();
+    lists = lists.filter(c => c.name.toLowerCase().includes(q) || (c.asset||'').toLowerCase().includes(q));
+  }
+  if (checklistFilter.status !== 'All') lists = lists.filter(c => c.status === checklistFilter.status);
+
+  const rows = lists.map(c => {
+    const total = parseInt(c.items) || 0;
+    const done  = parseInt(c.completed) || 0;
+    const pct   = total > 0 ? Math.round(done / total * 100) : 0;
+    return `<tr>
+      <td style="font-weight:600">${escHtml(c.name)}</td>
+      <td>${typeBadge(c.type)}</td>
+      <td class="font-mono text-sm">${escHtml(c.asset||'—')}</td>
+      <td>${statusBadge(c.status)}</td>
+      <td class="text-sm">${total}</td>
+      <td style="min-width:130px">
+        <div class="progress-wrap">
+          <div class="progress-bar"><div class="progress-bar-fill" style="width:${pct}%"></div></div>
+          <span class="progress-pct">${done}/${total}</span>
+        </div>
+      </td>
+      <td class="actions">
+        <button class="btn btn-sm btn-ghost" onclick="openEditChecklist('${c.id}')"><i class="fa-solid fa-pen"></i></button>
+        <button class="btn btn-sm btn-ghost" style="color:#dc2626" onclick="confirmDelete('checklist','${c.id}')"><i class="fa-solid fa-trash"></i></button>
+      </td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="7"><div class="empty-state"><i class="fa-solid fa-list-check"></i><p>No checklists found.</p></div></td></tr>`;
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="page-header">
+      <h1><i class="fa-solid fa-list-check" style="color:#3b82f6;margin-right:8px"></i>Checklists</h1>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="openNewChecklist()"><i class="fa-solid fa-plus"></i> New Checklist</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <div class="search-wrap"><i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" placeholder="Search checklists…" value="${escHtml(checklistFilter.search)}" oninput="checklistFilter.search=this.value;renderChecklists()" />
+      </div>
+      <select onchange="checklistFilter.status=this.value;renderChecklists()">
+        ${['All','Pending','In Progress','Complete'].map(s=>`<option${checklistFilter.status===s?' selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Checklist Name</th><th>Type</th><th>Asset</th><th>Status</th><th>Items</th><th>Completed</th><th>Actions</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function openNewChecklist() {
+  editingChecklistId = null;
+  document.getElementById('checklist-modal-title').textContent = 'New Checklist';
+  ['cm-name','cm-asset','cm-items','cm-completed','cm-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('cm-type').value   = 'Pre-Functional';
+  document.getElementById('cm-status').value = 'Pending';
+  clearFormErrors('checklist-modal');
+  openModal('checklist-modal-overlay');
+}
+
+function openEditChecklist(id) {
+  const c = load(KEYS.checklists).find(c => c.id === id);
+  if (!c) return;
+  editingChecklistId = id;
+  document.getElementById('checklist-modal-title').textContent = 'Edit Checklist';
+  document.getElementById('cm-name').value      = c.name || '';
+  document.getElementById('cm-type').value      = c.type || 'Pre-Functional';
+  document.getElementById('cm-status').value    = c.status || 'Pending';
+  document.getElementById('cm-asset').value     = c.asset || '';
+  document.getElementById('cm-items').value     = c.items || '';
+  document.getElementById('cm-completed').value = c.completed || '';
+  document.getElementById('cm-notes').value     = c.notes || '';
+  clearFormErrors('checklist-modal');
+  openModal('checklist-modal-overlay');
+}
+
+function saveChecklist() {
+  const nameEl = document.getElementById('cm-name');
+  if (!nameEl.value.trim()) { showError(nameEl); return; }
+  clearFormErrors('checklist-modal');
+  const lists = load(KEYS.checklists);
+  const obj = {
+    id:        editingChecklistId || uid(),
+    projectId: currentProject.id,
+    name:      nameEl.value.trim(),
+    type:      document.getElementById('cm-type').value,
+    status:    document.getElementById('cm-status').value,
+    asset:     document.getElementById('cm-asset').value.trim(),
+    items:     parseInt(document.getElementById('cm-items').value) || 0,
+    completed: parseInt(document.getElementById('cm-completed').value) || 0,
+    notes:     document.getElementById('cm-notes').value.trim()
+  };
+  if (editingChecklistId) {
+    const idx = lists.findIndex(c => c.id === editingChecklistId);
+    if (idx > -1) lists[idx] = obj;
+    toast('Checklist updated.', 'success');
+  } else {
+    lists.push(obj);
+    toast('Checklist created.', 'success');
+  }
+  save(KEYS.checklists, lists);
+  closeModal('checklist-modal-overlay');
+  renderChecklists();
+}
+
+function deleteChecklist(id) {
+  save(KEYS.checklists, load(KEYS.checklists).filter(c => c.id !== id));
+  toast('Checklist deleted.', 'success');
+  renderChecklists();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// TESTS
+// ════════════════════════════════════════════════════════════════════════
+function renderTests() {
+  if (!currentProject) { navigate('projects'); return; }
+  let tests = load(KEYS.tests).filter(t => t.projectId === currentProject.id);
+  if (testFilter.search) {
+    const q = testFilter.search.toLowerCase();
+    tests = tests.filter(t => t.name.toLowerCase().includes(q) || (t.asset||'').toLowerCase().includes(q));
+  }
+  if (testFilter.type !== 'All') tests = tests.filter(t => t.type === testFilter.type);
+  if (testFilter.status !== 'All') tests = tests.filter(t => t.status === testFilter.status);
+
+  const rows = tests.map(t => `<tr>
+    <td class="font-mono text-sm" style="color:#1e40af;font-weight:600">${escHtml(t.testNum||'—')}</td>
+    <td style="font-weight:500">${escHtml(t.name)}</td>
+    <td>${typeBadge(t.type)}</td>
+    <td class="font-mono text-sm">${escHtml(t.asset||'—')}</td>
+    <td>${statusBadge(t.status)}</td>
+    <td class="text-sm">${fmtDate(t.scheduledDate)}</td>
+    <td class="text-sm">${fmtDate(t.completedDate)}</td>
+    <td class="text-sm">${escHtml(t.assignedTo||'—')}</td>
+    <td class="actions">
+      <button class="btn btn-sm btn-ghost" onclick="openEditTest('${t.id}')"><i class="fa-solid fa-pen"></i></button>
+      <button class="btn btn-sm btn-ghost" style="color:#dc2626" onclick="confirmDelete('test','${t.id}')"><i class="fa-solid fa-trash"></i></button>
+    </td>
+  </tr>`).join('') || `<tr><td colspan="9"><div class="empty-state"><i class="fa-solid fa-vial-circle-check"></i><p>No tests found.</p></div></td></tr>`;
+
+  document.getElementById('main-content').innerHTML = `
+    <div class="page-header">
+      <h1><i class="fa-solid fa-vial-circle-check" style="color:#3b82f6;margin-right:8px"></i>Tests</h1>
+      <div class="header-actions">
+        <button class="btn btn-primary" onclick="openNewTest()"><i class="fa-solid fa-plus"></i> New Test</button>
+      </div>
+    </div>
+    <div class="toolbar">
+      <div class="search-wrap"><i class="fa-solid fa-magnifying-glass"></i>
+        <input type="search" placeholder="Search tests…" value="${escHtml(testFilter.search)}" oninput="testFilter.search=this.value;renderTests()" />
+      </div>
+      <select onchange="testFilter.type=this.value;renderTests()">
+        ${['All','Functional','Performance','Integration','Acceptance'].map(s=>`<option${testFilter.type===s?' selected':''}>${s}</option>`).join('')}
+      </select>
+      <select onchange="testFilter.status=this.value;renderTests()">
+        ${['All','Scheduled','In Progress','Passed','Failed','On Hold'].map(s=>`<option${testFilter.status===s?' selected':''}>${s}</option>`).join('')}
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Test #</th><th>Test Name</th><th>Type</th><th>Asset</th>
+          <th>Status</th><th>Scheduled</th><th>Completed</th><th>Assigned To</th><th>Actions</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
+}
+
+function nextTestNum() {
+  const tests = load(KEYS.tests).filter(t => t.projectId === currentProject.id);
+  const nums = tests.map(t => parseInt((t.testNum||'').replace(/\D/g,''))||0);
+  return `T-${String((Math.max(0, ...nums) + 1)).padStart(3,'0')}`;
+}
+
+function openNewTest() {
+  editingTestId = null;
+  document.getElementById('test-modal-title').textContent = 'New Test';
+  ['tm-name','tm-asset','tm-assigned','tm-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('tm-type').value      = 'Functional';
+  document.getElementById('tm-status').value    = 'Scheduled';
+  document.getElementById('tm-scheduled').value = '';
+  document.getElementById('tm-completed').value = '';
+  clearFormErrors('test-modal');
+  openModal('test-modal-overlay');
+}
+
+function openEditTest(id) {
+  const t = load(KEYS.tests).find(t => t.id === id);
+  if (!t) return;
+  editingTestId = id;
+  document.getElementById('test-modal-title').textContent = 'Edit Test';
+  document.getElementById('tm-name').value      = t.name || '';
+  document.getElementById('tm-type').value      = t.type || 'Functional';
+  document.getElementById('tm-status').value    = t.status || 'Scheduled';
+  document.getElementById('tm-asset').value     = t.asset || '';
+  document.getElementById('tm-scheduled').value = t.scheduledDate || '';
+  document.getElementById('tm-completed').value = t.completedDate || '';
+  document.getElementById('tm-assigned').value  = t.assignedTo || '';
+  document.getElementById('tm-notes').value     = t.notes || '';
+  clearFormErrors('test-modal');
+  openModal('test-modal-overlay');
+}
+
+function saveTest() {
+  const nameEl = document.getElementById('tm-name');
+  if (!nameEl.value.trim()) { showError(nameEl); return; }
+  clearFormErrors('test-modal');
+  const tests = load(KEYS.tests);
+  const obj = {
+    id:            editingTestId || uid(),
+    projectId:     currentProject.id,
+    testNum:       editingTestId ? (tests.find(t=>t.id===editingTestId)||{}).testNum : nextTestNum(),
+    name:          nameEl.value.trim(),
+    type:          document.getElementById('tm-type').value,
+    status:        document.getElementById('tm-status').value,
+    asset:         document.getElementById('tm-asset').value.trim(),
+    scheduledDate: document.getElementById('tm-scheduled').value,
+    completedDate: document.getElementById('tm-completed').value,
+    assignedTo:    document.getElementById('tm-assigned').value.trim(),
+    notes:         document.getElementById('tm-notes').value.trim()
+  };
+  if (editingTestId) {
+    const idx = tests.findIndex(t => t.id === editingTestId);
+    if (idx > -1) tests[idx] = obj;
+    toast('Test updated.', 'success');
+  } else {
+    tests.push(obj);
+    toast('Test created.', 'success');
+  }
+  save(KEYS.tests, tests);
+  closeModal('test-modal-overlay');
+  renderTests();
+}
+
+function deleteTest(id) {
+  save(KEYS.tests, load(KEYS.tests).filter(t => t.id !== id));
+  toast('Test deleted.', 'success');
+  renderTests();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// DELETE ROUTING
+// ════════════════════════════════════════════════════════════════════════
+function confirmDelete(type, id) {
+  const labels = {
+    project: 'project', asset: 'asset',
+    'issue-design': 'design issue', 'issue-construction': 'construction issue',
+    checklist: 'checklist', test: 'test'
+  };
+  confirmAction(`Delete ${labels[type]||'item'}?`, `This action cannot be undone.`, () => {
+    switch (type) {
+      case 'project':              deleteProject(id); break;
+      case 'asset':                deleteAsset(id); break;
+      case 'issue-design':         deleteIssue('design', id); break;
+      case 'issue-construction':   deleteIssue('construction', id); break;
+      case 'checklist':            deleteChecklist(id); break;
+      case 'test':                 deleteTest(id); break;
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// MODAL HELPERS
+// ════════════════════════════════════════════════════════════════════════
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// Close modal when clicking overlay background
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) overlay.classList.remove('open');
+  });
+});
+
+// ── Confirm Dialog ───────────────────────────────────────────────────────
+let confirmCallback = null;
+function confirmAction(title, message, cb) {
+  document.getElementById('confirm-title').textContent   = title;
+  document.getElementById('confirm-message').textContent = message;
+  confirmCallback = cb;
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function closeConfirm() {
+  document.getElementById('confirm-overlay').classList.remove('open');
+  confirmCallback = null;
+}
+document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+  closeConfirm();
+  if (confirmCallback) confirmCallback();
+});
+document.getElementById('confirm-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('confirm-overlay')) closeConfirm();
+});
+
+// ── Form Validation ──────────────────────────────────────────────────────
+function showError(inputEl) {
+  const group = inputEl.closest('.form-group');
+  if (group) group.classList.add('has-error');
+}
+function clearFormErrors(modalId) {
+  document.getElementById(modalId).querySelectorAll('.form-group.has-error').forEach(g => g.classList.remove('has-error'));
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────
+function toast(message, type='info') {
+  const container = document.getElementById('toast-container');
+  const icons = { success: 'fa-circle-check', error: 'fa-circle-xmark', info: 'fa-circle-info' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<i class="fa-solid ${icons[type]||icons.info}"></i> ${escHtml(message)}`;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.classList.add('removing');
+    setTimeout(() => el.remove(), 280);
+  }, 3200);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// BADGE / FORMAT HELPERS
+// ════════════════════════════════════════════════════════════════════════
+function statusBadge(status) {
+  const map = {
+    'Active':        'badge-blue',
+    'Complete':      'badge-green',
+    'Passed':        'badge-green',
+    'Resolved':      'badge-green',
+    'Closed':        'badge-green',
+    'In Progress':   'badge-yellow',
+    'Scheduled':     'badge-blue',
+    'Planning':      'badge-purple',
+    'On Hold':       'badge-orange',
+    'Failed':        'badge-red',
+    'Open':          'badge-gray',
+    'Pending':       'badge-gray'
+  };
+  const cls = map[status] || 'badge-gray';
+  const dots = {
+    'Active': '●', 'Complete': '●', 'Passed': '●', 'In Progress': '●',
+    'Failed': '●', 'Open': '●', 'Pending': '●', 'Resolved': '●'
+  };
+  return `<span class="badge ${cls}">${dots[status]||''} ${escHtml(status||'—')}</span>`;
+}
+
+function priorityBadge(priority) {
+  const map = { 'Critical': 'badge-red', 'High': 'badge-teal', 'Medium': 'badge-pink', 'Low': 'badge-low' };
+  return `<span class="badge ${map[priority]||'badge-gray'}">${escHtml(priority||'—')}</span>`;
+}
+
+function typeBadge(type) {
+  const map = {
+    'HVAC':       'badge-blue',
+    'Mechanical': 'badge-yellow',
+    'Electrical': 'badge-orange',
+    'Plumbing':   'badge-teal',
+    'Controls':   'badge-purple',
+    'Other':      'badge-gray',
+    'Pre-Functional': 'badge-blue',
+    'Functional': 'badge-green',
+    'TAB':        'badge-orange',
+    'Performance':'badge-teal',
+    'Integration':'badge-purple',
+    'Acceptance': 'badge-green'
+  };
+  return `<span class="badge ${map[type]||'badge-gray'}">${escHtml(type||'—')}</span>`;
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  try {
+    const [y, m, day] = d.split('-');
+    return `${m}/${day}/${y}`;
+  } catch { return d; }
+}
+
+function escHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function csvCell(val) {
+  const s = String(val||'');
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g,'""')}"`;
+  return s;
+}
+
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ════════════════════════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+    closeConfirm();
+  }
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════════════
+seedData();
+navigate('projects');
+</script>
 </body>
 </html>
